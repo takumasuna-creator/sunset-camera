@@ -24,7 +24,24 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surfa
 nav.tabs button{all:unset;cursor:pointer;text-align:center;padding:8px 0 10px;font-size:13px;color:var(--muted);display:grid;justify-items:center;gap:2px}
 nav.tabs svg{width:24px;height:24px}
 nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
-#recv-frame{position:fixed;left:0;right:0;top:0;bottom:calc(env(safe-area-inset-bottom,0px) + 58px);width:100%;height:calc(100% - env(safe-area-inset-bottom,0px) - 58px);border:0;background:var(--bg)}
+/* 受付 */
+.card{background:var(--surface);border-radius:12px;padding:14px;display:grid;gap:10px;min-width:0}
+.card h2{margin:0;font-size:15px}
+.kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kind{all:unset;cursor:pointer;padding:16px 12px;border-radius:12px;background:var(--surface);border:2px solid var(--line);font-weight:800;font-size:16px;display:grid;gap:4px;text-align:center}
+.kind small{font-weight:400;font-size:11px;color:var(--muted)}
+.kind.wide{grid-column:1/-1;padding:22px 12px;font-size:18px}
+.kind[aria-pressed="true"]{border-color:var(--red);background:#FBE7E8}
+.subs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sub{all:unset;cursor:pointer;text-align:center;padding:10px;border-radius:999px;border:1px solid var(--line);font-weight:700;font-size:14px;background:var(--surface)}
+.sub[aria-pressed="true"]{background:var(--fg);color:#fff;border-color:var(--fg)}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+label.f{display:grid;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+label.f input,label.f select,label.f textarea{font:inherit;font-size:16px;color:var(--fg);padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);width:100%;min-width:0}
+label.f textarea{min-height:64px;resize:vertical}
+.req::after{content:" 必須";color:var(--red-ink);font-weight:700}
+.done-no{font-size:32px;font-weight:900;font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--muted)}
 
 /* 車の一覧 */
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:2px solid var(--red);border-radius:12px;padding:10px 12px}
@@ -105,7 +122,7 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v3</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v4</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -116,8 +133,49 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
   <div id="list" style="display:grid;gap:8px"></div>
 </main>
 
-<!-- 受付：今のアプリの受付画面をそのまま出す -->
-<iframe id="recv-frame" hidden title="受付"></iframe>
+<!-- 受付 -->
+<main id="v-recv" hidden>
+  <div class="card">
+    <h2>どこからの入庫ですか</h2>
+    <div class="kinds">
+      <button type="button" class="kind" data-k="yUsed" aria-pressed="false">ヤナセ中古車<small>仕入二課</small></button>
+      <button type="button" class="kind" data-k="yShop" aria-pressed="false">ヤナセ店舗<small>多摩支店・所沢支店</small></button>
+      <button type="button" class="kind wide" data-k="general" aria-pressed="false">一般・業者・保険<small>写真→コグニセブン</small></button>
+    </div>
+    <div class="subs" id="r-shop" hidden>
+      <button type="button" class="sub" data-s="yTama" aria-pressed="false">多摩支店（昭島）</button>
+      <button type="button" class="sub" data-s="yToko" aria-pressed="false">所沢支店</button>
+    </div>
+  </div>
+  <div class="card" id="r-form" hidden>
+    <div id="r-general" hidden style="display:grid;gap:10px">
+      <label class="f"><span class="req">入庫先（お客様名・業者名）</span><input id="r-customer" placeholder="例: 山田 太郎／東京海上、T立野BPC"></label>
+      <div class="row2">
+        <label class="f"><span>入庫先の区分</span><select id="r-category"></select></label>
+        <label class="f"><span>請求先</span><select id="r-bill"></select></label>
+      </div>
+    </div>
+    <label class="f"><span class="req">車名</span><input id="r-car" placeholder="例: C200 AV、プリウス"></label>
+    <label class="f"><span class="req">登録番号（なければ車台番号）</span><input id="r-plate" placeholder="例: 所沢330ね1234"></label>
+    <div class="row2">
+      <label class="f"><span class="req">入庫日</span><input id="r-date" type="date"></label>
+      <label class="f"><span>担当</span><input id="r-staff"></label>
+    </div>
+    <label class="f"><span>作業メモ</span><textarea id="r-memo" placeholder="例: 左リアドア凹み・クォーター擦り傷"></textarea></label>
+    <button class="btn" id="r-submit" type="button">受付する</button>
+    <div class="err" id="r-err"></div>
+  </div>
+</main>
+<main id="v-done" hidden>
+  <div class="card">
+    <span class="note">受付しました（売上集計表に記入・写真フォルダー作成済み）</span>
+    <span class="done-no" id="d-no"></span>
+    <span class="model" id="d-car"></span>
+    <span class="note" id="d-where"></span>
+  </div>
+  <button class="btn" id="d-shoot" type="button">📷 この車の写真を撮る</button>
+  <button class="btn ghost" id="d-next" type="button" style="color:var(--fg);border-color:var(--line)">続けて受付する</button>
+</main>
 
 <nav class="tabs" id="tabs">
   <button data-tab="recv" aria-current="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>受付</button>
@@ -179,7 +237,7 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
 const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
 const STAGES = ['入庫', '分解', '鈑金', '塗装', '完成', 'その他'];
 const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左側', '左前'];
-const VERSION = '3';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '4';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 3;
 
 const $ = s => document.querySelector(s);
@@ -221,16 +279,81 @@ async function loadCars(){
 }
 
 // ---------- タブ ----------
-$('#tabs').onclick = e => {
-  const b = e.target.closest('button'); if (!b) return;
-  const t = b.dataset.tab;
-  document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-current', x === b));
+let lastRecv = null;
+function showTab(t){
+  document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-current', x.dataset.tab === t));
   const recv = t === 'recv';
-  $('#v-list').hidden = recv; $('#head').hidden = recv;
-  $('#recv-frame').hidden = !recv;
-  if (recv && !$('#recv-frame').src) $('#recv-frame').src = API + '?mode=recv';
-  if (!recv) loadCars();
+  $('#v-list').hidden = recv;
+  $('#v-recv').hidden = !recv || !!lastRecv;
+  $('#v-done').hidden = !recv || !lastRecv;
+  $('#head h1').firstChild.textContent = recv ? '受付' : '作業';
+  $('#sub').textContent = recv ? '入庫した車を登録して写真フォルダーを作る' : '車を押すとカメラが開きます';
+  if (recv) loadBoot(); else loadCars();
+  window.scrollTo(0, 0);
+}
+$('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); };
+
+// ---------- 受付 ----------
+const post = async body => {
+  const r = await (await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ pin: store.get('pin') }, body)) })).json();
+  if (!r.ok) throw new Error(r.error);
+  return r.data;
 };
+let booted = false, kind = '';
+async function loadBoot(){
+  if (booted) return;
+  try {
+    const r = await (await fetch(API + '?api=boot&pin=' + encodeURIComponent(store.get('pin')))).json();
+    if (!r.ok) throw new Error(r.error);
+    $('#r-category').innerHTML = '<option value="">選ぶ</option>' + r.data.categories.map(s => `<option>${esc(s)}</option>`).join('');
+    $('#r-bill').innerHTML = '<option value="">（あとで）</option>' + r.data.billTo.map(s => `<option>${esc(s)}</option>`).join('');
+    if (!$('#r-date').value) $('#r-date').value = r.data.today;
+    booted = true;
+  } catch (err) { $('#r-err').textContent = '読み込めませんでした: ' + (err.message || err); }
+}
+function setKind(k){
+  document.querySelectorAll('.kind').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === k || (k.startsWith('yT') && x.dataset.k === 'yShop')));
+  document.querySelectorAll('.sub').forEach(x => x.setAttribute('aria-pressed', x.dataset.s === k));
+  $('#r-shop').hidden = !(k === 'yShop' || k === 'yTama' || k === 'yToko');
+  kind = k === 'yShop' ? '' : k;            // 店舗は多摩・所沢を選ぶまで決まらない
+  $('#r-form').hidden = !kind;
+  $('#r-general').hidden = kind !== 'general';
+  if (!$('#r-staff').value) $('#r-staff').value = store.get('me');
+}
+document.querySelector('.kinds').onclick = e => { const b = e.target.closest('.kind'); if (b) setKind(b.dataset.k); };
+$('#r-shop').onclick = e => { const b = e.target.closest('.sub'); if (b) setKind(b.dataset.s); };
+$('#r-submit').onclick = () => submitRecv(false);
+async function submitRecv(force){
+  $('#r-err').textContent = '';
+  const f = { action: 'register', kind, date: $('#r-date').value, car: $('#r-car').value.trim(), plate: $('#r-plate').value.trim(),
+    customer: $('#r-customer').value.trim(), category: $('#r-category').value, billTo: $('#r-bill').value,
+    staff: $('#r-staff').value.trim(), memo: $('#r-memo').value.trim(), force };
+  $('#r-submit').disabled = true; $('#r-submit').textContent = '受付中…';
+  try {
+    const r = await post(f);
+    if (r.duplicate) {
+      const list = r.duplicate.map(d => `${d.no}　${d.car}　${d.plate}`).join('\n');
+      if (confirm('同じ登録番号の車がすでにあります。\n' + list + '\n\n別の入庫として受け付けますか？')) return submitRecv(true);
+      return;
+    }
+    lastRecv = r;
+    $('#d-no').textContent = r.no;
+    $('#d-car').textContent = `${r.car.car}　${r.car.plate}`;
+    $('#d-where').textContent = `売上集計表「${r.sheet}」${r.row}行目 ・ 写真→${isY(r.car) ? 'ヤナセBPシステム' : 'コグニセブン'}`;
+    cars.unshift(r.car);
+    showTab('recv');
+  } catch (err) { $('#r-err').textContent = String(err.message || err); }
+  finally { $('#r-submit').disabled = false; $('#r-submit').textContent = '受付する'; }
+}
+$('#d-shoot').onclick = () => { const c = lastRecv.car; resetRecv(); showTab('work'); openCam(c); };
+$('#d-next').onclick = () => { resetRecv(); showTab('recv'); };
+function resetRecv(){
+  lastRecv = null;
+  ['#r-car', '#r-plate', '#r-customer', '#r-memo'].forEach(x => $(x).value = '');
+  $('#r-category').value = ''; $('#r-bill').value = '';
+  setKind('');
+}
 
 // ---------- 車の一覧 ----------
 function renderList(){
