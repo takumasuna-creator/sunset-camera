@@ -105,7 +105,7 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v3</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -179,6 +179,7 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
 const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
 const STAGES = ['入庫', '分解', '鈑金', '塗装', '完成', 'その他'];
 const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左側', '左前'];
+const VERSION = '3';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 3;
 
 const $ = s => document.querySelector(s);
@@ -384,6 +385,11 @@ function toJpeg(cv){
 let tt; function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
 window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'hold' || s.state === 'wait' || s.state === 'up')) { e.preventDefault(); e.returnValue = ''; } });
 
+// iPhoneが古い画面を覚えていることがあるので、開くたびに新しい版が出ていないか確かめる
+fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
+  const m = /const VERSION = '(\d+)'/.exec(t);
+  if (m && m[1] !== VERSION) location.replace(location.pathname + '?v=' + m[1]);
+}).catch(() => {});
 start();
 </script>
 </body>
