@@ -64,6 +64,35 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
 .status{justify-self:end;text-align:right;font-size:12px;line-height:1.5}
 .status b{font-size:20px;display:block}
 
+.thumbs img{cursor:pointer}
+.thumbs img.hold{border-color:#fff}
+/* 横向き: 上の帯は映像に重ね、シャッターは右の縦列に */
+@media (orientation: landscape){
+  #cam{grid-template-rows:1fr;grid-template-columns:minmax(0,1fr) 112px}
+  .view{grid-row:1;grid-column:1}
+  .cam-top{position:absolute;top:0;left:0;right:112px;z-index:2;padding:calc(env(safe-area-inset-top,0px) + 6px) 10px 6px calc(env(safe-area-inset-left,0px) + 10px);gap:6px;background:rgba(0,0,0,.35)}
+  .next{top:auto;bottom:12px}
+  .cam-bottom{grid-row:1;grid-column:2;grid-template-columns:1fr;grid-template-rows:auto 1fr auto;justify-items:center;padding:12px calc(env(safe-area-inset-right,0px) + 8px) 12px 8px}
+  .cam-bottom .status{order:-1;justify-self:center;text-align:center}
+  .cam-bottom .shutter{align-self:center}
+  .thumbs{flex-direction:column}
+  .thumbs img:nth-child(n+3){display:none}
+}
+/* 確認画面 */
+#review,#peek{position:fixed;inset:0;z-index:25;background:#111;color:#fff;display:grid;grid-template-rows:auto 1fr auto}
+.rv-head{padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 10px;font-size:15px;font-weight:800}
+.rv-head small{display:block;font-weight:400;font-size:12px;opacity:.8;margin-top:2px}
+.rv-grid{overflow:auto;padding:4px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;align-content:start}
+.rv{position:relative;border-radius:8px;overflow:hidden;background:#333;aspect-ratio:4/3}
+.rv img{width:100%;height:100%;object-fit:cover;display:block}
+.rv span{position:absolute;left:0;right:0;bottom:0;font-size:11px;background:rgba(0,0,0,.6);padding:2px 5px}
+.rv button{all:unset;cursor:pointer;position:absolute;top:4px;right:4px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.65);display:grid;place-items:center;font-size:18px;font-weight:800}
+.rv-foot{padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 14px);display:grid;gap:8px}
+.rv-foot .btn{font-size:17px}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;font-size:15px;padding:12px}
+#peek img{width:100%;height:100%;object-fit:contain;min-height:0}
+#peek .rv-foot{grid-template-columns:1fr 1fr}
+.sending{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 70px);z-index:7;background:var(--fg);color:#fff;border-radius:10px;padding:10px 14px;font-size:14px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:30;padding:16px}
 .modal form{background:var(--surface);border-radius:16px;padding:20px;width:100%;max-width:380px;display:grid;gap:12px}
 .modal h2{margin:0;font-size:17px}
@@ -113,6 +142,27 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
     <div class="status" id="status"></div>
   </div>
 </div>
+
+<!-- 撮った写真の確認（終わる を押した時） -->
+<div id="review" hidden>
+  <div class="rv-head" id="rv-head"></div>
+  <div class="rv-grid" id="rv-grid"></div>
+  <div class="rv-foot">
+    <button class="btn" id="rv-up" type="button"></button>
+    <button class="btn ghost" id="rv-back" type="button">撮影に戻る</button>
+    <button class="btn ghost" id="rv-drop" type="button">全部やめる（アップしない）</button>
+  </div>
+</div>
+<!-- 1枚を大きく見る（撮影中にサムネイルを押した時） -->
+<div id="peek" hidden>
+  <div class="rv-head" id="pk-head"></div>
+  <img id="pk-img" alt="">
+  <div class="rv-foot">
+    <button class="btn ghost" id="pk-back" type="button">戻る</button>
+    <button class="btn" id="pk-del" type="button">この写真を削除</button>
+  </div>
+</div>
+<div class="sending" id="sending" hidden></div>
 
 <div class="modal" id="s-pin" hidden><form id="f-pin">
   <h2>PINを入力</h2><input id="pin" type="password" inputmode="numeric" autocomplete="off">
@@ -216,26 +266,65 @@ function closeCam(){
   stream = null; $('#video').srcObject = null;
   $('#cam').hidden = true; cur = null;
 }
-$('#c-done').onclick = () => {
-  const left = shots.filter(s => s.state !== 'done' && s.state !== 'err').length;
-  closeCam();
-  if (left) toast(`残り${left}枚を送っています。この画面のまま少し待ってください`);
+// 撮った写真はすぐには送らず、「終わる」で確認してからアップする
+const held = () => shots.filter(s => cur && s.no === cur.no && s.state === 'hold');
+$('#c-done').onclick = () => { if (!held().length) return closeCam(); openReview(); };
+
+function openReview(){
+  const list = held();
+  $('#rv-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`;
+  $('#rv-grid').innerHTML = list.map(s => `<div class="rv"><img src="${s.thumb}" alt=""><span>${s.stage}${s.label ? '・' + esc(s.label) : ''}</span><button data-k="${shots.indexOf(s)}" aria-label="削除">×</button></div>`).join('');
+  $('#rv-up').textContent = `${list.length}枚をアップする`;
+  $('#rv-up').hidden = !list.length;
+  $('#review').hidden = false;
+}
+$('#rv-grid').onclick = e => { const b = e.target.closest('button[data-k]'); if (!b) return; drop(shots[+b.dataset.k]); relabel(); openReview(); };
+$('#rv-back').onclick = () => { $('#review').hidden = true; renderCam(); };
+$('#rv-drop').onclick = () => { held().forEach(drop); $('#review').hidden = true; closeCam(); };
+$('#rv-up').onclick = () => {
+  relabel();
+  held().forEach(s => s.state = 'wait');
+  $('#review').hidden = true; closeCam(); pump(); showSending();
 };
+function drop(s){ const i = shots.indexOf(s); if (i >= 0) shots.splice(i, 1); }
+// 消した分を詰めて、入庫の8方向の名前を撮った順に付け直す
+function relabel(){
+  let n = 0;
+  held().forEach(s => { if (s.stage === '入庫') { s.label = n < 8 ? ANGLES[n] : '損傷'; n++; } });
+}
+
+let peekShot = null;
+$('#thumbs').onclick = e => {
+  const img = e.target.closest('img[data-k]'); if (!img) return;
+  peekShot = shots[+img.dataset.k];
+  $('#pk-head').textContent = `${peekShot.stage}${peekShot.label ? '・' + peekShot.label : ''}`;
+  $('#pk-img').src = peekShot.thumb;
+  $('#pk-del').hidden = peekShot.state !== 'hold';
+  $('#peek').hidden = false;
+};
+$('#pk-back').onclick = () => { $('#peek').hidden = true; };
+$('#pk-del').onclick = () => { drop(peekShot); relabel(); $('#peek').hidden = true; renderCam(); };
+
+function showSending(){
+  const left = shots.filter(s => s.state === 'wait' || s.state === 'up').length;
+  const err = shots.filter(s => s.state === 'err').length;
+  $('#sending').hidden = !left && !err;
+  $('#sending').textContent = left ? `写真を送っています（残り${left}枚）。画面を閉じずにお待ちください`
+    : `${err}枚送れませんでした。ここを押すと送り直します`;
+}
+$('#sending').onclick = () => { shots.forEach(s => { if (s.state === 'err') s.state = 'wait'; }); pump(); showSending(); };
 
 const mine = () => shots.filter(s => cur && s.no === cur.no);
 function renderCam(){
   const here = mine();
   const n = st => here.filter(s => s.stage === st).length;
   $('#stages').innerHTML = STAGES.map(s => `<button class="stage" data-s="${s}" aria-pressed="${s === stage}">${s}<i>${n(s)}</i></button>`).join('');
-  const inN = n('入庫');
+  const inN = held().filter(s => s.stage === '入庫').length;
   $('#next').textContent = stage === '入庫' && inN < 8 ? `次: ${ANGLES[inN]}` : stage;
-  $('#thumbs').innerHTML = here.slice(-4).reverse().map(s => `<img src="${s.thumb}" class="${s.state === 'done' ? 'ok' : s.state === 'err' ? 'ng' : ''}" alt="">`).join('');
-  const done = here.filter(s => s.state === 'done').length;
-  const err = here.filter(s => s.state === 'err').length;
-  $('#status').innerHTML = `<b>${here.length}枚</b>保存済 ${done}${err ? `<br><span style="color:#ff8a8a">失敗 ${err}（押すと再送）</span>` : ''}`;
+  $('#thumbs').innerHTML = here.slice(-4).reverse().map(s => `<img src="${s.thumb}" data-k="${shots.indexOf(s)}" class="${s.state === 'hold' ? 'hold' : s.state === 'done' ? 'ok' : s.state === 'err' ? 'ng' : ''}" alt="">`).join('');
+  $('#status').innerHTML = `<b>${held().length}枚</b>未アップ`;
 }
 $('#stages').onclick = e => { const b = e.target.closest('.stage'); if (!b) return; stage = b.dataset.s; renderCam(); };
-$('#status').onclick = () => { shots.forEach(s => { if (s.state === 'err') s.state = 'wait'; }); renderCam(); pump(); };
 
 $('#shutter').onclick = () => {
   const v = $('#video');
@@ -244,14 +333,14 @@ $('#shutter').onclick = () => {
   const cv = document.createElement('canvas');
   cv.width = Math.round(v.videoWidth * s); cv.height = Math.round(v.videoHeight * s);
   cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-  const inN = mine().filter(x => x.stage === '入庫').length;
+  const inN = held().filter(x => x.stage === '入庫').length;
   const label = stage === '入庫' ? (inN < 8 ? ANGLES[inN] : '損傷') : '';
-  const t = document.createElement('canvas'); t.width = 80; t.height = Math.round(80 * cv.height / cv.width);
+  const t = document.createElement('canvas'); t.width = 640; t.height = Math.round(640 * cv.height / cv.width);   // 確認用
   t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
-  shots.push({ no: cur.no, car: cur, stage, label, canvas: cv, thumb: t.toDataURL('image/jpeg', .6), state: 'wait' });
+  shots.push({ no: cur.no, car: cur, stage, label, canvas: cv, thumb: t.toDataURL('image/jpeg', .7), state: 'hold' });
   const f = $('#flash'); f.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on')));
   if (navigator.vibrate) navigator.vibrate(30);
-  renderCam(); pump();
+  renderCam();
 };
 
 // ---------- 送信（JPEG・300KB以下、3枚ずつ） ----------
@@ -274,6 +363,7 @@ async function worker(){
       s.state = 'err';
     }
     if (cur) renderCam();
+    showSending();
   }
 }
 function toJpeg(cv){
@@ -292,7 +382,7 @@ function toJpeg(cv){
 }
 
 let tt; function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
-window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'wait' || s.state === 'up')) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'hold' || s.state === 'wait' || s.state === 'up')) { e.preventDefault(); e.returnValue = ''; } });
 
 start();
 </script>
