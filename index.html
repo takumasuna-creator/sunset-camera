@@ -61,6 +61,7 @@ label.f textarea{min-height:64px;resize:vertical}
 .cam-car{display:flex;align-items:center;gap:10px}
 .cam-car b{font-size:16px}
 .cam-car span{font-size:12px;opacity:.85;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.done.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.7);font-weight:700;font-size:13px;padding:7px 10px}
 .done{all:unset;cursor:pointer;background:#fff;color:var(--fg);font-weight:800;font-size:14px;padding:8px 14px;border-radius:999px}
 .stages{display:flex;gap:6px;overflow-x:auto}
 .stage{all:unset;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.5)}
@@ -107,7 +108,19 @@ label.f textarea{min-height:64px;resize:vertical}
 .rv-foot{padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 14px);display:grid;gap:8px}
 .rv-foot .btn{font-size:17px}
 .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;font-size:15px;padding:12px}
-#peek img{width:100%;height:100%;object-fit:contain;min-height:0}
+#peek img,#gview img{width:100%;height:100%;object-fit:contain;min-height:0}
+#gal,#gview{position:fixed;inset:0;z-index:26;background:#111;color:#fff;display:grid;grid-template-rows:auto 1fr auto}
+#gview{z-index:27}
+#gview .rv-foot{grid-template-columns:1fr}
+.g-sec{grid-column:1/-1;font-size:13px;font-weight:800;margin-top:8px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:3px}
+.g-sec i{font-style:normal;font-weight:400;opacity:.7;margin-left:4px}
+#g-grid{grid-auto-rows:max-content}
+#g-grid .rv{aspect-ratio:auto;min-height:max-content}
+#g-grid .rv img,#g-grid .rv .pdf{aspect-ratio:4/3;height:auto;position:static}
+.rv.doc{background:#f4f4f4;color:#222}
+.rv.doc img{object-fit:contain}
+.rv .pdf{position:absolute;inset:0;display:grid;place-items:center;font-size:28px;font-weight:800;color:var(--red)}
+.g-msg{grid-column:1/-1;text-align:center;opacity:.8;padding:32px 8px;font-size:14px;line-height:1.7}
 #peek .rv-foot{grid-template-columns:1fr 1fr}
 .sending{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 70px);z-index:7;background:var(--fg);color:#fff;border-radius:10px;padding:10px 14px;font-size:14px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:30;padding:16px}
@@ -122,7 +135,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v4</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v5</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -139,12 +152,8 @@ label.f textarea{min-height:64px;resize:vertical}
     <h2>どこからの入庫ですか</h2>
     <div class="kinds">
       <button type="button" class="kind" data-k="yUsed" aria-pressed="false">ヤナセ中古車<small>仕入二課</small></button>
-      <button type="button" class="kind" data-k="yShop" aria-pressed="false">ヤナセ店舗<small>多摩支店・所沢支店</small></button>
+      <button type="button" class="kind" data-k="yShop" aria-pressed="false">ヤナセ一般<small>多摩・所沢など</small></button>
       <button type="button" class="kind wide" data-k="general" aria-pressed="false">一般・業者・保険<small>写真→コグニセブン</small></button>
-    </div>
-    <div class="subs" id="r-shop" hidden>
-      <button type="button" class="sub" data-s="yTama" aria-pressed="false">多摩支店（昭島）</button>
-      <button type="button" class="sub" data-s="yToko" aria-pressed="false">所沢支店</button>
     </div>
   </div>
   <div class="card" id="r-form" hidden>
@@ -185,7 +194,7 @@ label.f textarea{min-height:64px;resize:vertical}
 <!-- カメラ（開いたまま、シャッターを押すたびに保存） -->
 <div id="cam" hidden>
   <div class="cam-top">
-    <div class="cam-car"><b id="c-no"></b><span id="c-car"></span><button class="done" id="c-done">終わる</button></div>
+    <div class="cam-car"><b id="c-no"></b><span id="c-car"></span><button class="done ghost" id="c-gal">前の写真・書類</button><button class="done" id="c-done">終わる</button></div>
     <div class="stages" id="stages"></div>
   </div>
   <div class="view">
@@ -220,6 +229,17 @@ label.f textarea{min-height:64px;resize:vertical}
     <button class="btn" id="pk-del" type="button">この写真を削除</button>
   </div>
 </div>
+<!-- 保存済みの写真・書類（撮影中に「前の写真・書類」を押した時） -->
+<div id="gal" hidden>
+  <div class="rv-head" id="g-head"></div>
+  <div class="rv-grid" id="g-grid"></div>
+  <div class="rv-foot"><button class="btn" id="g-back" type="button">撮影に戻る</button></div>
+</div>
+<div id="gview" hidden>
+  <div class="rv-head" id="gv-head"></div>
+  <img id="gv-img" alt="">
+  <div class="rv-foot"><button class="btn ghost" id="gv-back" type="button">一覧に戻る</button></div>
+</div>
 <div class="sending" id="sending" hidden></div>
 
 <div class="modal" id="s-pin" hidden><form id="f-pin">
@@ -237,7 +257,7 @@ label.f textarea{min-height:64px;resize:vertical}
 const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
 const STAGES = ['入庫', '分解', '鈑金', '塗装', '完成', 'その他'];
 const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左側', '左前'];
-const VERSION = '4';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '5';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 3;
 
 const $ = s => document.querySelector(s);
@@ -313,16 +333,13 @@ async function loadBoot(){
   } catch (err) { $('#r-err').textContent = '読み込めませんでした: ' + (err.message || err); }
 }
 function setKind(k){
-  document.querySelectorAll('.kind').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === k || (k.startsWith('yT') && x.dataset.k === 'yShop')));
-  document.querySelectorAll('.sub').forEach(x => x.setAttribute('aria-pressed', x.dataset.s === k));
-  $('#r-shop').hidden = !(k === 'yShop' || k === 'yTama' || k === 'yToko');
-  kind = k === 'yShop' ? '' : k;            // 店舗は多摩・所沢を選ぶまで決まらない
+  document.querySelectorAll('.kind').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === k));
+  kind = k;
   $('#r-form').hidden = !kind;
   $('#r-general').hidden = kind !== 'general';
   if (!$('#r-staff').value) $('#r-staff').value = store.get('me');
 }
 document.querySelector('.kinds').onclick = e => { const b = e.target.closest('.kind'); if (b) setKind(b.dataset.k); };
-$('#r-shop').onclick = e => { const b = e.target.closest('.sub'); if (b) setKind(b.dataset.s); };
 $('#r-submit').onclick = () => submitRecv(false);
 async function submitRecv(force){
   $('#r-err').textContent = '';
@@ -388,7 +405,7 @@ async function openCam(c){
 function closeCam(){
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = null; $('#video').srcObject = null;
-  $('#cam').hidden = true; cur = null;
+  $('#cam').hidden = true; $('#gal').hidden = true; $('#gview').hidden = true; cur = null;
 }
 // 撮った写真はすぐには送らず、「終わる」で確認してからアップする
 const held = () => shots.filter(s => cur && s.no === cur.no && s.state === 'hold');
@@ -428,6 +445,59 @@ $('#thumbs').onclick = e => {
 };
 $('#pk-back').onclick = () => { $('#peek').hidden = true; };
 $('#pk-del').onclick = () => { drop(peekShot); relabel(); $('#peek').hidden = true; renderCam(); };
+
+// ---------- 保存済みの写真・書類を見る ----------
+let galList = [];
+$('#c-gal').onclick = openGal;
+async function openGal(){
+  const no = cur.no;
+  $('#g-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>保存済みの写真と書類（押すと大きく見られます）</small>`;
+  $('#g-grid').innerHTML = '<div class="g-msg">読み込み中…</div>';
+  $('#gal').hidden = false;
+  try {
+    const r = await (await fetch(API + '?api=photos&pin=' + encodeURIComponent(store.get('pin')) + '&no=' + encodeURIComponent(no))).json();
+    if (!r.ok) throw new Error(r.error);
+    if (!cur || cur.no !== no) return;
+    galList = r.data;
+    const order = ['書類'].concat(STAGES, ['']);
+    const html = order.map(st => {
+      const items = galList.filter(p => (p.stage || '') === st);
+      if (!items.length) return '';
+      return `<div class="g-sec">${st || 'その他'}<i>${items.length}</i></div>` + items.map(p =>
+        `<div class="rv${p.stage === '書類' ? ' doc' : ''}" data-g="${galList.indexOf(p)}" style="cursor:pointer">`
+        + (p.thumb ? `<img src="${p.thumb}" alt="">` : p.pdf ? '<span class="pdf">PDF</span>' : '')
+        + (p.label ? `<span>${esc(p.label)}</span>` : '') + '</div>').join('');
+    }).join('');
+    $('#g-grid').innerHTML = html || '<div class="g-msg">まだ保存された写真・書類はありません。<br>見積書・作業指示書のPDFは、写真ホルダーのこの車のフォルダに入れると、ここに出ます。</div>';
+  } catch (err) { $('#g-grid').innerHTML = `<div class="g-msg">読み込めませんでした: ${esc(err.message || err)}</div>`; }
+}
+$('#g-back').onclick = () => { $('#gal').hidden = true; };
+$('#g-grid').onclick = async e => {
+  const b = e.target.closest('[data-g]'); if (!b) return;
+  const p = galList[+b.dataset.g];
+  const url = API + '?api=photo&pin=' + encodeURIComponent(store.get('pin')) + '&id=' + encodeURIComponent(p.id);
+  if (p.pdf) {   // PDFは別の画面で開く（iPhoneのPDF表示でページ送り・拡大ができる）
+    const w = window.open('', '_blank');
+    toast('書類を開いています…');
+    try {
+      const r = await (await fetch(url)).json();
+      if (!r.ok) throw new Error(r.error);
+      const blob = await (await fetch(r.data)).blob();
+      const href = URL.createObjectURL(blob);
+      if (w) w.location.href = href; else location.assign(href);
+    } catch (err) { if (w) w.close(); toast('開けませんでした: ' + (err.message || err)); }
+    return;
+  }
+  $('#gv-head').textContent = `${p.stage || 'その他'}${p.label ? '・' + p.label : ''}`;
+  $('#gv-img').src = p.thumb || '';
+  $('#gview').hidden = false;
+  try {
+    const r = await (await fetch(url)).json();
+    if (!r.ok) throw new Error(r.error);
+    if (!$('#gview').hidden) $('#gv-img').src = r.data;
+  } catch (err) { toast('大きい画像を読み込めませんでした'); }
+};
+$('#gv-back').onclick = () => { $('#gview').hidden = true; $('#gv-img').src = ''; };
 
 function showSending(){
   const left = shots.filter(s => s.state === 'wait' || s.state === 'up').length;
