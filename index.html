@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="サンエーBP">
 <title>サンエーBP</title>
@@ -399,7 +400,9 @@ async function openCam(c){
     $('#video').srcObject = stream;
   } catch (err) {
     $('#cam-err').hidden = false;
-    $('#cam-err').textContent = 'カメラを使えませんでした。設定 → Safari → カメラ を「許可」にして、もう一度開いてください。';
+    $('#cam-err').textContent = /Android/i.test(navigator.userAgent)
+      ? 'カメラを使えませんでした。アドレスバー左の鍵マーク → 権限 → カメラ を「許可」にして、もう一度開いてください。'
+      : 'カメラを使えませんでした。設定 → Safari → カメラ を「許可」にして、もう一度開いてください。';
   }
 }
 function closeCam(){
