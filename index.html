@@ -138,7 +138,7 @@ const store = {
 };
 const norm = s => String(s||'').normalize('NFKC').toUpperCase().replace(/[\s\-‐ー－]/g,'');
 const esc = s => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const isY = c => /^Y/.test(norm(c.no));
+const isY = c => c.dest === 'ヤナセBP';   // 振り分けはアプリ側（Y・YY番号とヤナセ昭島・所沢）
 
 let cars = [], cur = null, stage = '入庫', shots = [], stream = null, running = 0;
 
