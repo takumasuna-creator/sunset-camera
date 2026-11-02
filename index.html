@@ -139,7 +139,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v8</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v9</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -261,7 +261,7 @@ label.f textarea{min-height:64px;resize:vertical}
 const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
 const STAGES = ['入庫', '分解', '鈑金', '塗装', '完成', 'その他'];
 const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左側', '左前'];
-const VERSION = '8';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '9';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -294,23 +294,40 @@ const queue = {
 async function resumeQueue(){
   const items = await queue.all();
   if (!items || !items.length) return;
-  items.forEach(it => { if (!shots.some(x => x.id === it.id)) shots.push({ id: it.id, no: it.no, car: it.car, stage: it.stage, label: it.label, thumb: it.thumb, dataUrl: it.dataUrl, state: 'wait' }); });
+  items.filter(it => it.dataUrl).forEach(it => { if (!shots.some(x => x.id === it.id)) shots.push({ id: it.id, no: it.no, car: it.car, stage: it.stage, label: it.label, thumb: it.thumb, dataUrl: it.dataUrl, state: 'wait' }); });
   pump(); showSending();
 }
 
 function start(){
-  resumeQueue();
-  // 配布用リンク（…/#pin=1234）で開いたらPINを覚えて、アドレスからは消す（ホーム画面に追加してもPINは残らない）
-  const hp = /[#&]pin=([^&]+)/.exec(location.hash);
-  if (hp) { store.set('pin', decodeURIComponent(hp[1])); history.replaceState(null, '', location.pathname); }
+  // 配布用リンク（…/#pin=1234）で開いたらPINを覚える
+  ['pin', 'me'].forEach(k => { const m = new RegExp('[#&]' + k + '=([^&]+)').exec(location.hash); if (m) store.set(k, decodeURIComponent(m[1])); });
+  if (!store.get('pin') && !restored) {   // iPhoneが覚えた内容を消すことがあるので、控え（IndexedDB）から戻す
+    restored = true;
+    return queue.run('readonly', st => st.get('__me')).then(v => {
+      if (v) ['pin', 'me'].forEach(k => { if (v[k] && !store.get(k)) store.set(k, v[k]); });
+      start();
+    });
+  }
+  keepMe();
+  if (!started) { started = true; resumeQueue(); }
   if (!store.get('pin')) { $('#s-pin').hidden = false; return; }
   if (!store.get('me')) $('#s-me').hidden = false;
   $('#me').textContent = store.get('me') || '担当者';
   loadCars();
 }
+// PINと名前は1回入れたら二度と聞かない。Safariで入れてから「ホーム画面に追加」しても引き継げるよう、
+// ブラウザで開いている間はアドレスの # の後ろにも付けておく（ホーム画面から開いた時は消す）
+let restored = false, started = false;
+function keepMe(){
+  const pin = store.get('pin'), me = store.get('me'); if (!pin) return;
+  queue.put({ id: '__me', pin, me });
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  history.replaceState(null, '', location.pathname + location.search
+    + (standalone ? '' : '#pin=' + encodeURIComponent(pin) + (me ? '&me=' + encodeURIComponent(me) : '')));
+}
 $('#f-pin').onsubmit = e => { e.preventDefault(); store.set('pin', $('#pin').value.trim()); $('#s-pin').hidden = true; start(); };
 $('#f-me').onsubmit = e => { e.preventDefault(); const v = $('#myname').value.trim(); if (!v) return;
-  store.set('me', v); $('#me').textContent = v; $('#s-me').hidden = true; };
+  store.set('me', v); $('#me').textContent = v; $('#s-me').hidden = true; keepMe(); };
 $('#me').onclick = () => { $('#myname').value = store.get('me'); $('#s-me').hidden = false; };
 
 async function loadCars(){
@@ -323,7 +340,7 @@ async function loadCars(){
     renderList();
   } catch (err) {
     const m = String(err.message || err);
-    if (m.indexOf('PIN') >= 0) { store.set('pin',''); $('#pin-err').textContent = 'PINが違います'; $('#s-pin').hidden = false; return; }
+    if (m.indexOf('PIN') >= 0) { store.set('pin',''); queue.del('__me'); history.replaceState(null, '', location.pathname); $('#pin-err').textContent = 'PINが違います'; $('#s-pin').hidden = false; return; }
     $('#count').textContent = '読み込めませんでした: ' + m;
   }
 }
@@ -623,7 +640,7 @@ window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === '
 // iPhoneが古い画面を覚えていることがあるので、開くたびに新しい版が出ていないか確かめる
 fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
   const m = /const VERSION = '(\d+)'/.exec(t);
-  if (m && m[1] !== VERSION) location.replace(location.pathname + '?v=' + m[1]);
+  if (m && m[1] !== VERSION) location.replace(location.pathname + '?v=' + m[1] + location.hash);
 }).catch(() => {});
 start();
 </script>
