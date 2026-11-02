@@ -139,7 +139,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v10</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v11</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -265,7 +265,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '10';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '11';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -505,7 +505,8 @@ $('#pk-back').onclick = () => { $('#peek').hidden = true; };
 $('#pk-del').onclick = () => { drop(peekShot); relabel(); $('#peek').hidden = true; renderCam(); };
 
 // ---------- 保存済みの写真・書類を見る ----------
-let galList = [];
+let galList = [], galSeq = [], galAt = -1;
+const bigCache = {};
 $('#c-gal').onclick = openGal;
 async function openGal(){
   const no = cur.no;
@@ -526,6 +527,7 @@ async function openGal(){
         + (p.thumb ? `<img src="${p.thumb}" alt="">` : p.pdf ? '<span class="pdf">PDF</span>' : '')
         + (p.label ? `<span>${esc(p.label)}</span>` : '') + '</div>').join('');
     }).join('');
+    galSeq = order.flatMap(st => galList.filter(p => (p.stage || '') === st && !p.pdf));   // スワイプで送る順（一覧と同じ並び、PDFは除く）
     $('#g-grid').innerHTML = html || '<div class="g-msg">まだ保存された写真・書類はありません。<br>見積書・作業指示書のPDFは、写真ホルダーのこの車のフォルダに入れると、ここに出ます。</div>';
   } catch (err) { $('#g-grid').innerHTML = `<div class="g-msg">読み込めませんでした: ${esc(err.message || err)}</div>`; }
 }
@@ -546,16 +548,39 @@ $('#g-grid').onclick = async e => {
     } catch (err) { if (w) w.close(); toast('開けませんでした: ' + (err.message || err)); }
     return;
   }
-  $('#gv-head').textContent = `${p.stage || 'その他'}${p.label ? '・' + p.label : ''}`;
+  showBig(galSeq.indexOf(p));
+};
+function bigUrl(p){ return API + '?api=photo&pin=' + encodeURIComponent(store.get('pin')) + '&id=' + encodeURIComponent(p.id); }
+async function loadBig(p){
+  if (!bigCache[p.id]) bigCache[p.id] = fetch(bigUrl(p)).then(r => r.json()).then(r => { if (!r.ok) throw new Error(r.error); return r.data; })
+    .catch(err => { delete bigCache[p.id]; throw err; });
+  return bigCache[p.id];
+}
+async function showBig(i){
+  const p = galSeq[i]; if (!p) return;
+  galAt = i;
+  $('#gv-head').innerHTML = `${esc(p.stage || 'その他')}${p.label ? '・' + esc(p.label) : ''}<small>${i + 1} / ${galSeq.length}　左右にスワイプで前後の写真</small>`;
   $('#gv-img').src = p.thumb || '';
   $('#gview').hidden = false;
-  try {
-    const r = await (await fetch(url)).json();
-    if (!r.ok) throw new Error(r.error);
-    if (!$('#gview').hidden) $('#gv-img').src = r.data;
-  } catch (err) { toast('大きい画像を読み込めませんでした'); }
-};
-$('#gv-back').onclick = () => { $('#gview').hidden = true; $('#gv-img').src = ''; };
+  try { const d = await loadBig(p); if (galAt === i && !$('#gview').hidden) $('#gv-img').src = d; }
+  catch (err) { toast('大きい画像を読み込めませんでした'); }
+  [i + 1, i - 1].forEach(j => { if (galSeq[j]) loadBig(galSeq[j]).catch(() => {}); });   // 前後を先に読んでおく
+}
+$('#gv-back').onclick = () => { $('#gview').hidden = true; $('#gv-img').src = ''; galAt = -1; };
+// 左右スワイプで前後の写真（画面の左右端をタップしても送れる）
+let sx = null, sy = 0;
+$('#gv-img').addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+$('#gv-img').addEventListener('touchend', e => {
+  if (sx === null) return;
+  const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
+});
+$('#gv-img').addEventListener('click', e => { const w = e.currentTarget.clientWidth; if (e.offsetX < w * .25) step(-1); else if (e.offsetX > w * .75) step(1); });
+function step(d){
+  const j = galAt + d;
+  if (j < 0 || j >= galSeq.length) { toast(d > 0 ? '最後の写真です' : '最初の写真です'); return; }
+  showBig(j);
+}
 
 function showSending(){
   const left = shots.filter(s => s.state === 'wait' || s.state === 'up').length;
