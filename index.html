@@ -139,7 +139,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v6</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v7</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -261,8 +261,8 @@ label.f textarea{min-height:64px;resize:vertical}
 const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
 const STAGES = ['入庫', '分解', '鈑金', '塗装', '完成', 'その他'];
 const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左側', '左前'];
-const VERSION = '6';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
-const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 3;
+const VERSION = '7';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
 const store = {
@@ -276,7 +276,30 @@ const isY = c => c.dest === 'ヤナセBP';   // 振り分けはアプリ側（Y�
 let cars = [], cur = null, stage = '入庫', shots = [], stream = null, running = 0;
 
 // ---------- 起動 ----------
+// 送る前の写真はスマホの中（IndexedDB）にも置いておき、アプリを閉じても次に開いた時に続きから送る
+const queue = {
+  db: null,
+  open(){ return this.db || (this.db = new Promise((ok, ng) => {
+    const r = indexedDB.open('sunae-upload', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('q', { keyPath: 'id' });
+    r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error);
+  })); },
+  async run(mode, fn){ try { const db = await this.open(); return await new Promise((ok, ng) => {
+    const tx = db.transaction('q', mode); const req = fn(tx.objectStore('q'));
+    tx.oncomplete = () => ok(req && req.result); tx.onerror = () => ng(tx.error); }); } catch (e) { return null; } },
+  put(item){ return this.run('readwrite', st => st.put(item)); },
+  del(id){ return this.run('readwrite', st => st.delete(id)); },
+  all(){ return this.run('readonly', st => st.getAll()); },
+};
+async function resumeQueue(){
+  const items = await queue.all();
+  if (!items || !items.length) return;
+  items.forEach(it => { if (!shots.some(x => x.id === it.id)) shots.push({ id: it.id, no: it.no, car: it.car, stage: it.stage, label: it.label, thumb: it.thumb, dataUrl: it.dataUrl, state: 'wait' }); });
+  pump(); showSending();
+}
+
 function start(){
+  resumeQueue();
   if (!store.get('pin')) { $('#s-pin').hidden = false; return; }
   if (!store.get('me')) $('#s-me').hidden = false;
   $('#me').textContent = store.get('me') || '担当者';
@@ -430,7 +453,11 @@ $('#rv-back').onclick = () => { $('#review').hidden = true; renderCam(); };
 $('#rv-drop').onclick = () => { held().forEach(drop); $('#review').hidden = true; closeCam(); };
 $('#rv-up').onclick = () => {
   relabel();
-  held().forEach(s => s.state = 'wait');
+  held().forEach(s => {
+    s.id = Date.now() + '_' + Math.random().toString(36).slice(2);
+    s.dataUrl = toJpeg(s.canvas); s.canvas = null; s.state = 'wait';
+    queue.put({ id: s.id, no: s.no, car: s.car, stage: s.stage, label: s.label, thumb: s.thumb, dataUrl: s.dataUrl });
+  });
   $('#review').hidden = true; closeCam(); pump(); showSending();
 };
 function drop(s){ const i = shots.indexOf(s); if (i >= 0) shots.splice(i, 1); }
@@ -509,8 +536,8 @@ function showSending(){
   const left = shots.filter(s => s.state === 'wait' || s.state === 'up').length;
   const err = shots.filter(s => s.state === 'err').length;
   $('#sending').hidden = !left && !err;
-  $('#sending').textContent = left ? `写真を送っています（残り${left}枚）。画面を閉じずにお待ちください`
-    : `${err}枚送れませんでした。ここを押すと送り直します`;
+  $('#sending').textContent = left ? `写真を送っています（残り${left}枚）。次の車を撮っても大丈夫です`
+    : `${err}枚まだ送れていません。電波が戻ると自動で送ります（押すと今すぐ送り直し）`;
 }
 $('#sending').onclick = () => { shots.forEach(s => { if (s.state === 'err') s.state = 'wait'; }); pump(); showSending(); };
 
@@ -543,7 +570,7 @@ $('#shutter').onclick = () => {
   renderCam();
 };
 
-// ---------- 送信（JPEG・300KB以下、3枚ずつ） ----------
+// ---------- 送信（JPEG・300KB以下、5枚ずつ） ----------
 function pump(){
   while (running < PARALLEL && shots.some(s => s.state === 'wait')) { running++; worker().finally(() => running--); }
 }
@@ -555,17 +582,23 @@ async function worker(){
       const c = s.car;
       const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ pin: store.get('pin'), no: c.no, customer: c.customer, car: c.car, plate: c.plate,
-          stage: s.stage, label: s.label, staff: store.get('me'), dataUrl: toJpeg(s.canvas) }) });
+          stage: s.stage, label: s.label, staff: store.get('me'), dataUrl: s.dataUrl }) });
       const r = await res.json();
       if (!r.ok) throw new Error(r.error);
-      s.state = 'done'; s.canvas = null;
+      s.state = 'done'; s.dataUrl = null;
+      queue.del(s.id);
     } catch (err) {
       s.state = 'err';
+      clearTimeout(retryT); retryT = setTimeout(retryErr, 15000);   // 電波が悪い時は少し待って自動で送り直す
     }
     if (cur) renderCam();
     showSending();
   }
 }
+let retryT;
+function retryErr(){ if (!shots.some(s => s.state === 'err')) return; shots.forEach(s => { if (s.state === 'err') s.state = 'wait'; }); pump(); showSending(); }
+window.addEventListener('online', retryErr);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retryErr(); });
 function toJpeg(cv){
   const limit = MAX_KB * 1024 * 1.37;
   let c = cv;
@@ -582,7 +615,7 @@ function toJpeg(cv){
 }
 
 let tt; function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
-window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'hold' || s.state === 'wait' || s.state === 'up')) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'hold')) { e.preventDefault(); e.returnValue = ''; } });
 
 // iPhoneが古い画面を覚えていることがあるので、開くたびに新しい版が出ていないか確かめる
 fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
