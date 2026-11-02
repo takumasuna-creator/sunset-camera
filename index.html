@@ -139,7 +139,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v9</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v10</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -186,7 +186,7 @@ label.f textarea{min-height:64px;resize:vertical}
     <span class="model" id="d-car"></span>
     <span class="note" id="d-where"></span>
   </div>
-  <button class="btn" id="d-shoot" type="button">📷 この車の写真を撮る</button>
+  <button class="btn" id="d-shoot" type="button">📷 車検証・コーションラベル・メーターから撮る</button>
   <button class="btn ghost" id="d-next" type="button" style="color:var(--fg);border-color:var(--line)">続けて受付する</button>
 </main>
 
@@ -261,7 +261,11 @@ label.f textarea{min-height:64px;resize:vertical}
 const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
 const STAGES = ['入庫', '分解', '鈑金', '塗装', '完成', 'その他'];
 const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左側', '左前'];
-const VERSION = '9';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+// 受付で必ず撮る3枚（保存は「入庫」の写真として送る）
+const MUST = ['車検証', 'コーションラベル', 'メーター'];
+const CAM_STAGES = ['受付'].concat(STAGES);
+const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
+const VERSION = '10';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -273,7 +277,7 @@ const norm = s => String(s||'').normalize('NFKC').toUpperCase().replace(/[\s\-�
 const esc = s => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const isY = c => c.dest === 'ヤナセBP';   // 振り分けはアプリ側（Y・YY番号とヤナセ昭島・所沢）
 
-let cars = [], cur = null, stage = '入庫', shots = [], stream = null, running = 0;
+let camFirst = '', cars = [], cur = null, stage = '入庫', shots = [], stream = null, running = 0;
 
 // ---------- 起動 ----------
 // 送る前の写真はスマホの中（IndexedDB）にも置いておき、アプリを閉じても次に開いた時に続きから送る
@@ -410,7 +414,7 @@ async function submitRecv(force){
   } catch (err) { $('#r-err').textContent = String(err.message || err); }
   finally { $('#r-submit').disabled = false; $('#r-submit').textContent = '受付する'; }
 }
-$('#d-shoot').onclick = () => { const c = lastRecv.car; resetRecv(); showTab('work'); openCam(c); };
+$('#d-shoot').onclick = () => { const c = lastRecv.car; resetRecv(); showTab('work'); openCam(c, '受付'); };
 $('#d-next').onclick = () => { resetRecv(); showTab('recv'); };
 function resetRecv(){
   lastRecv = null;
@@ -435,8 +439,8 @@ $('#q').addEventListener('input', renderList);
 $('#list').onclick = e => { const b = e.target.closest('.car'); if (b) openCam(cars[+b.dataset.i]); };
 
 // ---------- カメラ ----------
-async function openCam(c){
-  cur = c; stage = '入庫';
+async function openCam(c, first){
+  cur = c; stage = first || '入庫'; camFirst = stage;
   $('#c-no').textContent = c.no;
   $('#c-car').textContent = `${c.car}　${c.plate}`;
   $('#cam').hidden = false; $('#cam-err').hidden = true;
@@ -462,7 +466,9 @@ $('#c-done').onclick = () => { if (!held().length) return closeCam(); openReview
 
 function openReview(){
   const list = held();
-  $('#rv-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`;
+  const miss = camFirst === '受付' ? MUST.filter(m => !mine().some(s => s.label === m)) : [];
+  $('#rv-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`
+    + (miss.length ? `<small style="color:#ffb3b3;font-weight:800">まだ撮っていません: ${miss.join('・')}（撮影に戻る→「受付」）</small>` : '');
   $('#rv-grid').innerHTML = list.map(s => `<div class="rv"><img src="${s.thumb}" alt=""><span>${s.stage}${s.label ? '・' + esc(s.label) : ''}</span><button data-k="${shots.indexOf(s)}" aria-label="削除">×</button></div>`).join('');
   $('#rv-up').textContent = `${list.length}枚をアップする`;
   $('#rv-up').hidden = !list.length;
@@ -481,10 +487,9 @@ $('#rv-up').onclick = () => {
   $('#review').hidden = true; closeCam(); pump(); showSending();
 };
 function drop(s){ const i = shots.indexOf(s); if (i >= 0) shots.splice(i, 1); }
-// 消した分を詰めて、入庫の8方向の名前を撮った順に付け直す
+// 消した分を詰めて、受付の3枚・入庫の8方向の名前を撮った順に付け直す
 function relabel(){
-  let n = 0;
-  held().forEach(s => { if (s.stage === '入庫') { s.label = n < 8 ? ANGLES[n] : '損傷'; n++; } });
+  ['受付', '入庫'].forEach(st => held().filter(s => s.stage === st).forEach((s, n) => { s.label = labelFor(st, n); }));
 }
 
 let peekShot = null;
@@ -565,9 +570,9 @@ const mine = () => shots.filter(s => cur && s.no === cur.no);
 function renderCam(){
   const here = mine();
   const n = st => here.filter(s => s.stage === st).length;
-  $('#stages').innerHTML = STAGES.map(s => `<button class="stage" data-s="${s}" aria-pressed="${s === stage}">${s}<i>${n(s)}</i></button>`).join('');
-  const inN = held().filter(s => s.stage === '入庫').length;
-  $('#next').textContent = stage === '入庫' && inN < 8 ? `次: ${ANGLES[inN]}` : stage;
+  $('#stages').innerHTML = CAM_STAGES.map(s => `<button class="stage" data-s="${s}" aria-pressed="${s === stage}">${s}<i>${n(s)}</i></button>`).join('');
+  const k = held().filter(s => s.stage === stage).length;
+  $('#next').textContent = stage === '受付' && k < MUST.length || stage === '入庫' && k < 8 ? `次: ${labelFor(stage, k)}` : stage;
   $('#thumbs').innerHTML = here.slice(-4).reverse().map(s => `<img src="${s.thumb}" data-k="${shots.indexOf(s)}" class="${s.state === 'hold' ? 'hold' : s.state === 'done' ? 'ok' : s.state === 'err' ? 'ng' : ''}" alt="">`).join('');
   $('#status').innerHTML = `<b>${held().length}枚</b>未アップ`;
 }
@@ -580,13 +585,14 @@ $('#shutter').onclick = () => {
   const cv = document.createElement('canvas');
   cv.width = Math.round(v.videoWidth * s); cv.height = Math.round(v.videoHeight * s);
   cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-  const inN = held().filter(x => x.stage === '入庫').length;
-  const label = stage === '入庫' ? (inN < 8 ? ANGLES[inN] : '損傷') : '';
+  const label = labelFor(stage, held().filter(x => x.stage === stage).length);
   const t = document.createElement('canvas'); t.width = 640; t.height = Math.round(640 * cv.height / cv.width);   // 確認用
   t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
   shots.push({ no: cur.no, car: cur, stage, label, canvas: cv, thumb: t.toDataURL('image/jpeg', .7), state: 'hold' });
   const f = $('#flash'); f.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on')));
   if (navigator.vibrate) navigator.vibrate(30);
+  // 受付の3枚を撮り終えたら、そのまま入庫の8方向へ進む
+  if (stage === '受付' && held().filter(x => x.stage === '受付').length === MUST.length) { stage = '入庫'; toast('車検証・コーションラベル・メーターOK。続けて車の周りを撮ってください'); }
   renderCam();
 };
 
@@ -602,7 +608,7 @@ async function worker(){
       const c = s.car;
       const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ pin: store.get('pin'), no: c.no, customer: c.customer, car: c.car, plate: c.plate,
-          stage: s.stage, label: s.label, staff: store.get('me'), dataUrl: s.dataUrl }) });
+          stage: s.stage === '受付' ? '入庫' : s.stage, label: s.label, staff: store.get('me'), dataUrl: s.dataUrl }) });
       const r = await res.json();
       if (!r.ok) throw new Error(r.error);
       s.state = 'done'; s.dataUrl = null;
