@@ -66,6 +66,8 @@ label.f textarea{min-height:64px;resize:vertical}
 .cam-car b{font-size:16px}
 .cam-car span{font-size:12px;opacity:.85;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .done.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.7);font-weight:700;font-size:13px;padding:7px 10px}
+.cam-btns{display:grid;grid-template-columns:1fr 1fr .7fr;gap:6px}
+.cam-btns .done{text-align:center;padding:9px 8px;font-size:14px}
 .done{all:unset;cursor:pointer;background:#fff;color:var(--fg);font-weight:800;font-size:14px;padding:8px 14px;border-radius:999px}
 .stages{display:flex;gap:6px;overflow-x:auto}
 .stage{all:unset;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.5)}
@@ -139,7 +141,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v11</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v12</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -198,8 +200,9 @@ label.f textarea{min-height:64px;resize:vertical}
 <!-- カメラ（開いたまま、シャッターを押すたびに保存） -->
 <div id="cam" hidden>
   <div class="cam-top">
-    <div class="cam-car"><b id="c-no"></b><span id="c-car"></span><button class="done ghost" id="c-gal">前の写真・書類</button><button class="done" id="c-done">終わる</button></div>
-    <div class="stages" id="stages"></div>
+    <div class="cam-car"><b id="c-no"></b><span id="c-car"></span></div>
+    <div class="cam-btns"><button class="done ghost" id="c-gal">アップ済み写真</button><label class="done ghost" id="c-roll">写真フォルダー<input type="file" id="roll" accept="image/*" multiple hidden></label><button class="done" id="c-done">終了</button></div>
+    <div class="stages" id="stages" hidden></div>
   </div>
   <div class="view">
     <video id="video" playsinline muted autoplay></video>
@@ -265,7 +268,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '11';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '12';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -440,7 +443,7 @@ $('#list').onclick = e => { const b = e.target.closest('.car'); if (b) openCam(c
 
 // ---------- カメラ ----------
 async function openCam(c, first){
-  cur = c; stage = first || '入庫'; camFirst = stage;
+  cur = c; stage = first || 'その他'; camFirst = stage;   // 工程は選ばない。受付から開いた時だけ車検証などを順に案内する
   $('#c-no').textContent = c.no;
   $('#c-car').textContent = `${c.car}　${c.plate}`;
   $('#cam').hidden = false; $('#cam-err').hidden = true;
@@ -468,14 +471,17 @@ function openReview(){
   const list = held();
   const miss = camFirst === '受付' ? MUST.filter(m => !mine().some(s => s.label === m)) : [];
   $('#rv-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`
-    + (miss.length ? `<small style="color:#ffb3b3;font-weight:800">まだ撮っていません: ${miss.join('・')}（撮影に戻る→「受付」）</small>` : '');
+    + (miss.length ? `<small style="color:#ffb3b3;font-weight:800">まだ撮っていません: ${miss.join('・')}（「撮影に戻る」で続きから撮れます）</small>` : '');
   $('#rv-grid').innerHTML = list.map(s => `<div class="rv"><img src="${s.thumb}" alt=""><span>${s.stage}${s.label ? '・' + esc(s.label) : ''}</span><button data-k="${shots.indexOf(s)}" aria-label="削除">×</button></div>`).join('');
   $('#rv-up').textContent = `${list.length}枚をアップする`;
   $('#rv-up').hidden = !list.length;
   $('#review').hidden = false;
 }
 $('#rv-grid').onclick = e => { const b = e.target.closest('button[data-k]'); if (!b) return; drop(shots[+b.dataset.k]); relabel(); openReview(); };
-$('#rv-back').onclick = () => { $('#review').hidden = true; renderCam(); };
+$('#rv-back').onclick = () => {
+  if (camFirst === '受付' && held().filter(x => x.stage === '受付').length < MUST.length) stage = '受付';
+  $('#review').hidden = true; renderCam();
+};
 $('#rv-drop').onclick = () => { held().forEach(drop); $('#review').hidden = true; closeCam(); };
 $('#rv-up').onclick = () => {
   relabel();
@@ -508,6 +514,27 @@ $('#pk-del').onclick = () => { drop(peekShot); relabel(); $('#peek').hidden = tr
 let galList = [], galSeq = [], galAt = -1;
 const bigCache = {};
 $('#c-gal').onclick = openGal;
+// スマホの写真（カメラロール）から選んでアップする。選んだ写真は確認画面に並べ、そこからアップ
+$('#roll').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length || !cur) return;
+  toast(`${files.length}枚を読み込んでいます…`);
+  for (const f of files) {
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = url; });
+      const r = Math.min(1, MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * r); cv.height = Math.round(img.naturalHeight * r);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      const t = document.createElement('canvas'); t.width = 640; t.height = Math.round(640 * cv.height / cv.width);
+      t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
+      shots.push({ no: cur.no, car: cur, stage: 'その他', label: '', canvas: cv, thumb: t.toDataURL('image/jpeg', .7), state: 'hold' });
+    } catch (err) { toast('読み込めない写真がありました'); }
+  }
+  renderCam(); openReview();
+};
 async function openGal(){
   const no = cur.no;
   $('#g-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>保存済みの写真と書類（押すと大きく見られます）</small>`;
@@ -597,7 +624,8 @@ function renderCam(){
   const n = st => here.filter(s => s.stage === st).length;
   $('#stages').innerHTML = CAM_STAGES.map(s => `<button class="stage" data-s="${s}" aria-pressed="${s === stage}">${s}<i>${n(s)}</i></button>`).join('');
   const k = held().filter(s => s.stage === stage).length;
-  $('#next').textContent = stage === '受付' && k < MUST.length || stage === '入庫' && k < 8 ? `次: ${labelFor(stage, k)}` : stage;
+  $('#next').textContent = stage === '受付' && k < MUST.length || stage === '入庫' && k < 8 ? `次: ${labelFor(stage, k)}` : '';
+  $('#next').hidden = !$('#next').textContent;
   $('#thumbs').innerHTML = here.slice(-4).reverse().map(s => `<img src="${s.thumb}" data-k="${shots.indexOf(s)}" class="${s.state === 'hold' ? 'hold' : s.state === 'done' ? 'ok' : s.state === 'err' ? 'ng' : ''}" alt="">`).join('');
   $('#status').innerHTML = `<b>${held().length}枚</b>未アップ`;
 }
