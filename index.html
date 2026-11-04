@@ -432,7 +432,7 @@ $('#r-submit').onclick = () => submitRecv(false);
 async function submitRecv(force){
   $('#r-err').textContent = '';
   const f = { action: 'register', kind, date: $('#r-date').value, car: $('#r-car').value.trim(), plate: $('#r-plate').value.trim(),
-    customer: kind === 'yShop' ? $('#r-shop').value.trim() : $('#r-customer').value.trim(), category: $('#r-category').value, billTo: $('#r-bill').value,
+    customer: kind === 'yShop' ? $('#r-shop').value.trim() : kind === 'general' ? $('#r-customer').value.trim() : '', category: $('#r-category').value, billTo: $('#r-bill').value,
     staff: $('#r-staff').value.trim(), memo: $('#r-memo').value.trim(), force };
   $('#r-submit').disabled = true; $('#r-submit').textContent = '受付中…';
   try {
