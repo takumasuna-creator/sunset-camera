@@ -145,7 +145,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v14</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v15</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -283,7 +283,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '14';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '15';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -439,7 +439,11 @@ async function submitRecv(force){
     const r = await post(f);
     if (r.duplicate) {
       const list = r.duplicate.map(d => `${d.no}　${d.car}　${d.plate}`).join('\n');
-      if (confirm('同じ登録番号の車がすでにあります。\n' + list + '\n\n別の入庫として受け付けますか？')) return submitRecv(true);
+      if (confirm('同じ登録番号の車がすでにあります。\n' + list + '\n\n・OK … 別の入庫として新しく受け付ける\n・キャンセル … この車の写真を撮る（受付はしない）')) return submitRecv(true);
+      // キャンセル: すでにある車の撮影へそのまま進む
+      const d = r.duplicate[0];
+      const c = cars.find(x => x.no === d.no) || { no: d.no, car: d.car, plate: d.plate, customer: '', dest: /^Y/.test(d.no) ? 'ヤナセBP' : 'コグニセブン' };
+      resetRecv(); showTab('work'); openCam(c, '受付');
       return;
     }
     lastRecv = r;
