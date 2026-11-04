@@ -38,6 +38,10 @@ nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
 .kind[aria-pressed="true"]{border-color:var(--red);background:#FBE7E8}
 .subs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sub{all:unset;cursor:pointer;text-align:center;padding:10px;border-radius:999px;border:1px solid var(--line);font-weight:700;font-size:14px;background:var(--surface)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips:empty{display:none}
+.chips .sub{padding:8px 12px;font-size:13px}
+#r-shops .sub{padding:10px 4px;font-size:13px}
 .sub[aria-pressed="true"]{background:var(--fg);color:#fff;border-color:var(--fg)}
 .row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 label.f{display:grid;gap:4px;font-size:12px;color:var(--muted);min-width:0}
@@ -141,7 +145,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v12</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v14</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -163,8 +167,19 @@ label.f textarea{min-height:64px;resize:vertical}
     </div>
   </div>
   <div class="card" id="r-form" hidden>
+    <div id="r-yshop" hidden style="display:grid;gap:8px">
+      <span class="f"><span>入庫先</span></span>
+      <div class="subs" id="r-shops" style="grid-template-columns:1.2fr 1fr .7fr">
+        <button type="button" class="sub" aria-pressed="false">ヤナセ多摩支店</button>
+        <button type="button" class="sub" aria-pressed="false">ヤナセ所沢</button>
+        <button type="button" class="sub" aria-pressed="false">DRP</button>
+      </div>
+      <input id="r-shop" placeholder="ほかは自由に記入（例: ヤナセ横浜）" style="font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px">
+    </div>
     <div id="r-general" hidden style="display:grid;gap:10px">
-      <label class="f"><span class="req">入庫先（お客様名・業者名）</span><input id="r-customer" placeholder="例: 山田 太郎／東京海上、T立野BPC"></label>
+      <label class="f"><span class="req">入庫先（お客様名・業者名）</span></label>
+      <div class="chips" id="r-custs"></div>
+      <input id="r-customer" placeholder="ほかは自由に記入（例: 山田 太郎／東京海上）" style="font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px">
       <div class="row2">
         <label class="f"><span>入庫先の区分</span><select id="r-category"></select></label>
         <label class="f"><span>請求先</span><select id="r-bill"></select></label>
@@ -268,7 +283,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '12';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '14';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -383,6 +398,8 @@ async function loadBoot(){
     $('#r-category').innerHTML = '<option value="">選ぶ</option>' + r.data.categories.map(s => `<option>${esc(s)}</option>`).join('');
     $('#r-bill').innerHTML = '<option value="">（あとで）</option>' + r.data.billTo.map(s => `<option>${esc(s)}</option>`).join('');
     if (!$('#r-date').value) $('#r-date').value = r.data.today;
+    custs = r.data.customers || [];
+    $('#r-custs').innerHTML = custs.map((c, i) => `<button type="button" class="sub" data-c="${i}" aria-pressed="false">${esc(c.name)}</button>`).join('');
     booted = true;
   } catch (err) { $('#r-err').textContent = '読み込めませんでした: ' + (err.message || err); }
 }
@@ -391,14 +408,31 @@ function setKind(k){
   kind = k;
   $('#r-form').hidden = !kind;
   $('#r-general').hidden = kind !== 'general';
+  $('#r-yshop').hidden = kind !== 'yShop';
   if (!$('#r-staff').value) $('#r-staff').value = store.get('me');
 }
 document.querySelector('.kinds').onclick = e => { const b = e.target.closest('.kind'); if (b) setKind(b.dataset.k); };
+// ヤナセ一般の入庫先: ボタンで選ぶか自由に記入。選んだ文字がそのまま売上集計表の入庫先（お客様）欄に入る
+function markShop(){ document.querySelectorAll('#r-shops .sub').forEach(b => b.setAttribute('aria-pressed', b.textContent === $('#r-shop').value.trim())); }
+$('#r-shops').onclick = e => { const b = e.target.closest('.sub'); if (!b) return; $('#r-shop').value = b.textContent; markShop(); };
+$('#r-shop').addEventListener('input', markShop);
+// 一般・業者・保険: 入庫が多い業者をボタンで。押すと入庫先・区分・請求先がまとめて入る
+let custs = [];
+function markCust(){ document.querySelectorAll('#r-custs .sub').forEach(b => b.setAttribute('aria-pressed', b.textContent === $('#r-customer').value.trim())); }
+$('#r-custs').onclick = e => {
+  const b = e.target.closest('.sub'); if (!b) return;
+  const c = custs[+b.dataset.c];
+  $('#r-customer').value = c.name;
+  const pick = (sel, v) => { if (v && [...$(sel).options].some(o => o.value === v)) $(sel).value = v; };
+  pick('#r-category', c.category); pick('#r-bill', c.billTo);
+  markCust();
+};
+$('#r-customer').addEventListener('input', markCust);
 $('#r-submit').onclick = () => submitRecv(false);
 async function submitRecv(force){
   $('#r-err').textContent = '';
   const f = { action: 'register', kind, date: $('#r-date').value, car: $('#r-car').value.trim(), plate: $('#r-plate').value.trim(),
-    customer: $('#r-customer').value.trim(), category: $('#r-category').value, billTo: $('#r-bill').value,
+    customer: kind === 'yShop' ? $('#r-shop').value.trim() : $('#r-customer').value.trim(), category: $('#r-category').value, billTo: $('#r-bill').value,
     staff: $('#r-staff').value.trim(), memo: $('#r-memo').value.trim(), force };
   $('#r-submit').disabled = true; $('#r-submit').textContent = '受付中…';
   try {
@@ -421,7 +455,8 @@ $('#d-shoot').onclick = () => { const c = lastRecv.car; resetRecv(); showTab('wo
 $('#d-next').onclick = () => { resetRecv(); showTab('recv'); };
 function resetRecv(){
   lastRecv = null;
-  ['#r-car', '#r-plate', '#r-customer', '#r-memo'].forEach(x => $(x).value = '');
+  ['#r-car', '#r-plate', '#r-customer', '#r-shop', '#r-memo'].forEach(x => $(x).value = '');
+  markShop(); markCust();
   $('#r-category').value = ''; $('#r-bill').value = '';
   setKind('');
 }
