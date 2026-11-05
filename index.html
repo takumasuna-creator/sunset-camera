@@ -145,7 +145,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v16</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v17</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -286,7 +286,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '16';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '17';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -582,7 +582,8 @@ async function openGal(){
   $('#g-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>保存済みの写真と書類（押すと大きく見られます）</small>`;
   $('#g-grid').innerHTML = '<div class="g-msg">読み込み中…</div>';
   $('#gal').hidden = false;
-  $('#g-cogni').hidden = isY(cur);   // ヤナセの車はBPシステム行きなので出さない
+  $('#g-cogni').hidden = false;
+  $('#g-cogni').textContent = urgentLabel(cur);   // ヤナセの車はBPシステム、それ以外はコグニセブン
   try {
     const r = await (await fetch(API + '?api=photos&pin=' + encodeURIComponent(store.get('pin')) + '&no=' + encodeURIComponent(no))).json();
     if (!r.ok) throw new Error(r.error);
@@ -605,28 +606,30 @@ $('#g-back').onclick = () => { $('#gal').hidden = true; };
 // 至急: PCのコグニ自動取り込みに「この車を最優先で」と頼む。
 // 車フォルダーに「至急コグニ」という小さな依頼カードの画像を送ると、PCの常駐がそれを見つけて
 // この車の写真をすぐ見積へ入れ、依頼カードは消す（GASの変更なしで動く仕組み）
+const urgentLabel = c => isY(c) ? '⚡ 今すぐヤナセBPシステムへ上げる' : '⚡ 今すぐコグニセブンへ入れる';
 $('#g-cogni').onclick = async () => {
   const c = cur; if (!c) return;
+  const bp = isY(c), dest = bp ? 'ヤナセBPシステム' : 'コグニセブン';
   const b = $('#g-cogni'); b.disabled = true; b.textContent = '依頼しています…';
   try {
     const cv = document.createElement('canvas'); cv.width = 480; cv.height = 160;
     const g = cv.getContext('2d');
     g.fillStyle = '#D7141F'; g.fillRect(0, 0, 480, 160);
-    g.fillStyle = '#fff'; g.font = 'bold 34px sans-serif'; g.fillText('至急コグニ依頼', 24, 62);
+    g.fillStyle = '#fff'; g.font = 'bold 34px sans-serif'; g.fillText(bp ? '至急BP依頼' : '至急コグニ依頼', 24, 62);
     g.font = '22px sans-serif';
     g.fillText(`${c.no}  ${c.car || ''}`.slice(0, 30), 24, 104);
     g.fillText(new Date().toLocaleString('ja-JP') + '  ' + (store.get('me') || ''), 24, 138);
     const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ pin: store.get('pin'), no: c.no, customer: c.customer, car: c.car, plate: c.plate,
-        stage: 'その他', label: '至急コグニ', staff: store.get('me'), dataUrl: cv.toDataURL('image/jpeg', .8) }) });
+        stage: 'その他', label: bp ? '至急BP' : '至急コグニ', staff: store.get('me'), dataUrl: cv.toDataURL('image/jpeg', .8) }) });
     const r = await res.json();
     if (!r.ok) throw new Error(r.error);
-    toast('PCに頼みました。数分でコグニセブンの見積に入ります');
+    toast(`PCに頼みました。数分で${dest}に入ります`);
     b.textContent = '✓ 依頼しました（数分で入ります）';
-    setTimeout(() => { b.disabled = false; b.textContent = '⚡ 今すぐコグニセブンへ入れる'; }, 60000);
+    setTimeout(() => { b.disabled = false; b.textContent = urgentLabel(c); }, 60000);
   } catch (err) {
     toast('依頼できませんでした: ' + (err.message || err));
-    b.disabled = false; b.textContent = '⚡ 今すぐコグニセブンへ入れる';
+    b.disabled = false; b.textContent = urgentLabel(c);
   }
 };
 $('#g-grid').onclick = async e => {
