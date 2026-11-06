@@ -132,6 +132,10 @@ button.status.up:active{transform:scale(.95)}
 #g-grid .rv{aspect-ratio:auto;min-height:max-content}
 #g-grid .rv img,#g-grid .rv .pdf{aspect-ratio:4/3;height:auto;position:static}
 .rv.doc{background:#f4f4f4;color:#222}
+#g-grid.picking .rv{outline:2px solid transparent;outline-offset:-2px}
+#g-grid.picking .rv.sel{outline-color:#fff}
+#g-grid.picking .rv.sel::after{content:"✓";position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:800;font-size:16px}
+#g-grid.picking .rv:not(.sel) img{opacity:.55}
 .rv.doc img{object-fit:contain}
 .rv .pdf{position:absolute;inset:0;display:grid;place-items:center;font-size:28px;font-weight:800;color:var(--red)}
 .g-msg{grid-column:1/-1;text-align:center;opacity:.8;padding:32px 8px;font-size:14px;line-height:1.7}
@@ -162,7 +166,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v20</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v21</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -341,7 +345,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '20';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '21';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -666,13 +670,14 @@ function renderGal(){
     if (!items.length) return '';
     return `<div class="g-sec">${st || 'その他'}<i>${items.length}</i></div>` + items.map(p => {
       const th = thumbs[p.id] || p.thumb || '';
-      return `<div class="rv${p.stage === '書類' ? ' doc' : ''}" data-g="${galList.indexOf(p)}" style="cursor:pointer">`
+      return `<div class="rv${p.stage === '書類' ? ' doc' : ''}${pick && pick.has(p.id) ? ' sel' : ''}" data-g="${galList.indexOf(p)}" style="cursor:pointer">`
         + (th ? `<img src="${th}" alt="">` : p.pdf ? `<span class="pdf" data-th="${p.id}">PDF</span>` : `<img src="${BLANK}" data-th="${p.id}" alt="">`)
         + (p.label ? `<span>${esc(p.label)}</span>` : '') + '</div>';
     }).join('');
   }).join('');
   galSeq = order.flatMap(st => galList.filter(p => (p.stage || '') === st && !p.pdf));   // スワイプで送る順（一覧と同じ並び、PDFは除く）
   $('#g-grid').innerHTML = html || '<div class="g-msg">まだ保存された写真・書類はありません。<br>見積書・作業指示書のPDFは、写真ホルダーのこの車のフォルダに入れると、ここに出ます。</div>';
+  $('#g-grid').classList.toggle('picking', !!pick);
 }
 function fillThumb(id){
   const el = $('#g-grid').querySelector(`[data-th="${id}"]`); if (!el) return;
@@ -704,6 +709,7 @@ async function openGal(){
   const no = cur.no, gen = ++galGen;
   $('#g-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>保存済みの写真と書類（押すと大きく見られます）</small>`;
   $('#gal').hidden = false;
+  pick = null; showPick();
   $('#g-cogni').hidden = false;
   $('#g-cogni').textContent = urgentLabel(cur);   // ヤナセの車はBPシステム、それ以外はコグニセブン
   // 前に見た一覧があれば、まずそれをすぐ出す（裏で最新に入れ替える）
@@ -731,14 +737,46 @@ async function openGal(){
     else $('#g-grid').innerHTML = `<div class="g-msg">読み込めませんでした: ${esc(err.message || err)}</div>`;
   }
 }
-$('#g-back').onclick = () => { $('#gal').hidden = true; galGen++; };
+$('#g-back').onclick = () => {
+  if (pick) { pick = null; showPick(); renderGal(); return; }   // 選んでいる途中なら「やめる」
+  $('#gal').hidden = true; galGen++;
+};
 // 至急: PCのコグニ自動取り込みに「この車を最優先で」と頼む。
 // 車フォルダーに「至急コグニ」という小さな依頼カードの画像を送ると、PCの常駐がそれを見つけて
 // この車の写真をすぐ見積へ入れ、依頼カードは消す（GASの変更なしで動く仕組み）
-const urgentLabel = c => isY(c) ? '⚡ 今すぐヤナセBPシステムへ上げる' : '⚡ 今すぐコグニセブンへ入れる';
+// コグニは「写真を選んでから」入れる。選んだ写真のファイル名は依頼カード(JPEG)のコメント欄に入れて送る
+const urgentLabel = c => isY(c) ? '⚡ 今すぐヤナセBPシステムへ上げる' : '⚡ 写真を選んでコグニセブンへ入れる';
+let pick = null;   // 選んでいる写真の id（選んでいない時は null）
+const pickable = p => !p.pdf && p.stage !== '書類' && !/至急/.test(p.name || '');
+function showPick(){
+  const b = $('#g-cogni');
+  if (pick) {
+    b.textContent = pick.size ? `✓ 選んだ${pick.size}枚をコグニセブンへ入れる` : 'コグニに入れる写真を押して選んでください';
+    b.disabled = !pick.size;
+    $('#g-back').textContent = 'やめる';
+  } else {
+    $('#g-back').textContent = '撮影に戻る';
+    if (cur) { b.textContent = urgentLabel(cur); b.disabled = false; }
+  }
+}
+function withComment(dataUrl, text){   // JPEGの先頭(SOI)の直後にコメント(COM)を入れる
+  const bin = atob(dataUrl.split(',')[1]);
+  const body = new TextEncoder().encode(text);
+  const len = body.length + 2;
+  let seg = '\xFF\xFE' + String.fromCharCode(len >> 8, len & 255);
+  body.forEach(x => { seg += String.fromCharCode(x); });
+  return 'data:image/jpeg;base64,' + btoa(bin.slice(0, 2) + seg + bin.slice(2));
+}
 $('#g-cogni').onclick = async () => {
   const c = cur; if (!c) return;
   const bp = isY(c), dest = bp ? 'ヤナセBPシステム' : 'コグニセブン';
+  if (!bp && !pick) {   // コグニ: まず選ぶ画面にする
+    pick = new Set(); showPick(); renderGal();
+    toast('コグニに入れる写真を押して選んでください');
+    return;
+  }
+  const files = !bp ? galList.filter(p => pick.has(p.id)).map(p => p.name) : [];
+  if (!bp && !files.length) return;
   const b = $('#g-cogni'); b.disabled = true; b.textContent = '依頼しています…';
   try {
     const cv = document.createElement('canvas'); cv.width = 480; cv.height = 160;
@@ -747,23 +785,32 @@ $('#g-cogni').onclick = async () => {
     g.fillStyle = '#fff'; g.font = 'bold 34px sans-serif'; g.fillText(bp ? '至急BP依頼' : '至急コグニ依頼', 24, 62);
     g.font = '22px sans-serif';
     g.fillText(`${c.no}  ${c.car || ''}`.slice(0, 30), 24, 104);
-    g.fillText(new Date().toLocaleString('ja-JP') + '  ' + (store.get('me') || ''), 24, 138);
+    g.fillText(new Date().toLocaleString('ja-JP') + '  ' + (store.get('me') || '') + (files.length ? `  ${files.length}枚` : ''), 24, 138);
+    let dataUrl = cv.toDataURL('image/jpeg', .8);
+    if (files.length) dataUrl = withComment(dataUrl, 'SUNA-PICK:' + JSON.stringify({ no: c.no, files }));
     const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ pin: store.get('pin'), no: c.no, customer: c.customer, car: c.car, plate: c.plate,
-        stage: 'その他', label: bp ? '至急BP' : '至急コグニ', staff: store.get('me'), dataUrl: cv.toDataURL('image/jpeg', .8) }) });
+        stage: 'その他', label: bp ? '至急BP' : '至急コグニ', staff: store.get('me'), dataUrl }) });
     const r = await res.json();
     if (!r.ok) throw new Error(r.error);
-    toast(`PCに頼みました。数分で${dest}に入ります`);
+    toast(files.length ? `PCに頼みました。選んだ${files.length}枚が数分で${dest}に入ります` : `PCに頼みました。数分で${dest}に入ります`);
+    if (pick) { pick = null; $('#g-back').textContent = '撮影に戻る'; renderGal(); }
     b.textContent = '✓ 依頼しました（数分で入ります）';
     setTimeout(() => { b.disabled = false; b.textContent = urgentLabel(c); }, 60000);
   } catch (err) {
     toast('依頼できませんでした: ' + (err.message || err));
-    b.disabled = false; b.textContent = urgentLabel(c);
+    b.disabled = false; if (pick) showPick(); else b.textContent = urgentLabel(c);
   }
 };
 $('#g-grid').onclick = async e => {
   const b = e.target.closest('[data-g]'); if (!b) return;
   const p = galList[+b.dataset.g];
+  if (pick) {   // 選ぶ画面: 押すたびに選ぶ／外す
+    if (!pickable(p)) { toast('書類・PDFは選べません'); return; }
+    if (pick.has(p.id)) pick.delete(p.id); else pick.add(p.id);
+    b.classList.toggle('sel', pick.has(p.id)); showPick();
+    return;
+  }
   const url = API + '?api=photo&pin=' + encodeURIComponent(store.get('pin')) + '&id=' + encodeURIComponent(p.id);
   if (p.pdf) {   // PDFは別の画面で開く（iPhoneのPDF表示でページ送り・拡大ができる）
     const w = window.open('', '_blank');
