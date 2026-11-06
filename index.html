@@ -24,7 +24,7 @@ header h1{margin:0;font-size:18px;font-weight:800;flex:1;min-width:0}
 header small{display:block;font-size:11px;opacity:.85;font-weight:400}
 .me{all:unset;cursor:pointer;font-size:12px;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:3px 10px}
 main{padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 90px);display:grid;gap:10px}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr 1fr;padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.tabs button{all:unset;cursor:pointer;text-align:center;padding:8px 0 10px;font-size:13px;color:var(--muted);display:grid;justify-items:center;gap:2px}
 nav.tabs svg{width:24px;height:24px}
 nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
@@ -145,11 +145,24 @@ button.status.up:active{transform:scale(.95)}
 .err{color:var(--red-ink);font-size:13px}
 .toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 120px);background:var(--fg);color:#fff;border-radius:10px;padding:10px 14px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:40}
 .toast.show{opacity:1}
+/* 作業メモ（ヤナセ車の追加作業・追加部品） */
+.m-car{display:flex;align-items:center;gap:10px}
+.m-car div{flex:1;min-width:0}
+.m-car .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-chg{all:unset;cursor:pointer;font-size:13px;font-weight:700;color:var(--red-ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap}
+.m-row{display:grid;gap:6px;border:1px solid var(--line);border-radius:10px;padding:10px;position:relative}
+.m-row select,.m-row input{font:inherit;font-size:16px;color:var(--fg);padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);width:100%;min-width:0}
+.m-row .row2{grid-template-columns:minmax(0,1fr) 92px}
+.m-del{all:unset;cursor:pointer;position:absolute;top:-9px;right:-6px;width:26px;height:26px;border-radius:50%;background:var(--fg);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800}
+.m-works{display:flex;flex-wrap:wrap;gap:5px}
+.m-works .sub{padding:6px 10px;font-size:13px}
+.m-add{all:unset;cursor:pointer;text-align:center;padding:10px;border-radius:10px;border:1px dashed var(--muted);color:var(--muted);font-weight:700;font-size:14px}
+.m-ok{font-size:22px;font-weight:900}
 </style>
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v19</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v20</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -211,9 +224,47 @@ button.status.up:active{transform:scale(.95)}
   <button class="btn ghost" id="d-next" type="button" style="color:var(--fg);border-color:var(--line)">続けて受付する</button>
 </main>
 
+<!-- 作業メモ：ヤナセ車の追加作業・追加部品をBPの作業メモへ -->
+<main id="v-memo" hidden>
+  <div id="m-pick" style="display:grid;gap:10px">
+    <label class="search"><span aria-hidden="true">🔍</span><input id="mq" type="search" placeholder="ヤナセ車を探す（番号・ナンバー・車名）" autocomplete="off"></label>
+    <div class="count" id="m-count"></div>
+    <div id="m-list" style="display:grid;gap:8px"></div>
+  </div>
+  <div id="m-form" hidden style="display:grid;gap:10px">
+    <div class="card m-car"><div><span class="no" id="m-no"></span>　<span class="model" id="m-model"></span><div class="meta" id="m-meta"></div></div><button type="button" class="m-chg" id="m-chg">車を変える</button></div>
+    <div class="card">
+      <h2>追加作業</h2>
+      <div id="m-works" style="display:grid;gap:12px"></div>
+      <button type="button" class="m-add" id="m-addw">＋ 作業を追加</button>
+    </div>
+    <div class="card">
+      <h2>追加部品 <small class="note" style="font-weight:400">あれば</small></h2>
+      <div id="m-parts" style="display:grid;gap:12px"></div>
+      <button type="button" class="m-add" id="m-addp">＋ 部品を追加</button>
+    </div>
+    <div class="card">
+      <label class="f"><span>ヤナセへのコメント</span><textarea id="m-comment"></textarea></label>
+      <span class="note">工数は分からなければ空欄でOK（0で入ります）。PCがBPの作業メモに入れて<b>一時保存</b>し、LINE WORKSで知らせます。内容はBPで確かめてから送信してください。</span>
+    </div>
+    <button class="btn" id="m-send" type="button">BPの作業メモへ送る</button>
+    <div class="err" id="m-err"></div>
+  </div>
+  <div id="m-done" hidden style="display:grid;gap:10px">
+    <div class="card">
+      <span class="m-ok">✓ 送りました</span>
+      <span id="m-done-car" class="model"></span>
+      <span class="note">数分でPCがBPの作業メモに入れて一時保存します。終わったらLINE WORKSに通知が来ます。</span>
+    </div>
+    <button class="btn" id="m-shoot" type="button">📷 この車の写真を撮る</button>
+    <button class="btn ghost" id="m-again" type="button" style="color:var(--fg);border-color:var(--line)">別の車のメモを書く</button>
+  </div>
+</main>
+
 <nav class="tabs" id="tabs">
   <button data-tab="recv" aria-current="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>受付</button>
   <button data-tab="work" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>作業</button>
+  <button data-tab="memo" aria-current="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h4"/></svg>作業メモ</button>
 </nav>
 
 <!-- カメラ（開いたまま、シャッターを押すたびに保存） -->
@@ -290,7 +341,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '19';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '20';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -366,7 +417,7 @@ async function loadCars(){
     cars = r.data;
     cars.sort((a,b) => (b.sheetMonth - a.sheetMonth) || b.no.localeCompare(a.no, 'ja', {numeric:true}));
     cars.forEach(c => c.key = norm([c.no, c.no.replace(/(\d+)-0*(\d+)/,'$1$2'), c.car, c.plate, c.customer].join(' ')));
-    renderList();
+    renderList(); renderMemoList();
   } catch (err) {
     const m = String(err.message || err);
     if (m.indexOf('PIN') >= 0) { store.set('pin',''); queue.del('__me'); history.replaceState(null, '', location.pathname); $('#pin-err').textContent = 'PINが違います'; $('#s-pin').hidden = false; return; }
@@ -378,13 +429,14 @@ async function loadCars(){
 let lastRecv = null;
 function showTab(t){
   document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-current', x.dataset.tab === t));
-  const recv = t === 'recv';
-  $('#v-list').hidden = recv;
+  const recv = t === 'recv', memo = t === 'memo';
+  $('#v-list').hidden = recv || memo;
   $('#v-recv').hidden = !recv || !!lastRecv;
   $('#v-done').hidden = !recv || !lastRecv;
-  $('#head h1').firstChild.textContent = recv ? '受付' : '作業';
-  $('#sub').textContent = recv ? '入庫した車を登録して写真フォルダーを作る' : '車を押すとカメラが開きます';
-  if (recv) loadBoot(); else loadCars();
+  $('#v-memo').hidden = !memo;
+  $('#head h1').firstChild.textContent = recv ? '受付' : memo ? '作業メモ' : '作業';
+  $('#sub').textContent = recv ? '入庫した車を登録して写真フォルダーを作る' : memo ? 'ヤナセ車の追加作業・追加部品をBPへ' : '車を押すとカメラが開きます';
+  if (recv) loadBoot(); else { if (memo) renderMemoList(); loadCars(); }
   window.scrollTo(0, 0);
 }
 $('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); };
@@ -844,6 +896,163 @@ function toJpeg(cv){
   }
   return c.toDataURL('image/jpeg', 0.5);
 }
+
+// ---------- 作業メモ（ヤナセ車の追加作業・追加部品） ----------
+// 車フォルダーに「追加作業」のカード画像を送る。画像の中（JPEGのコメント欄）にメモの内容(JSON)を入れてあり、
+// PCの bp_tool がそれを読んでBPの作業メモに入力→一時保存する（GASの変更なしで動く仕組み。カードは写真一覧にも残る）
+const M_PARTS = [
+  ['前', ['フロントバンパー', 'フロントグリル', 'フロントフード', 'フロントウインドウ']],
+  ['右', ['右フロントフェンダー', '右フロントドア', '右リアドア', '右リアフェンダー', '右ステップ', '右ドアミラー']],
+  ['左', ['左フロントフェンダー', '左フロントドア', '左リアドア', '左リアフェンダー', '左ステップ', '左ドアミラー']],
+  ['後ろ', ['リアバンパー', 'リアエンドパネル', 'トランク（リアゲード）', 'リアウインドウ']],
+  ['上・足まわり', ['ルーフ', '右フロントホイール', '右リアホイール', '左フロントホイール', '左リアホイール']],
+  ['その他', ['メカ作業', 'シート関係', 'アクセサリー', 'その他']],
+];
+const M_WORKS = ['脱着', '交換', '板金', '塗装', '素地ペイント', '磨き', '修理'];
+const M_KUBUN = ['板金', 'ペイント', 'メカニック', 'その他'];
+const M_COMMENT = '追加作業が出ました。ご確認お願いします';
+let mCar = null;
+const mKubun = (bui, work) => /塗装|ペイント/.test(work) ? 'ペイント' : bui === 'メカ作業' ? 'メカニック' : '板金';
+
+function renderMemoList(){
+  if ($('#v-memo').hidden) return;
+  const q = norm($('#mq').value);
+  const rows = cars.filter(c => isY(c) && (!q || c.key.indexOf(q) >= 0));
+  $('#m-count').textContent = cars.length ? `ヤナセ車 ${rows.length}台` : '読み込み中…';
+  $('#m-list').innerHTML = rows.slice(0, 80).map(c => `
+    <button class="car" data-i="${cars.indexOf(c)}">
+      <span class="no">${esc(c.no)}</span><span class="cam-ic">📝 メモ</span>
+      <span class="model">${esc(c.car)}</span><span></span>
+      <span class="meta">${esc(c.plate)} ・ ${esc(c.customer)}${c.inDate ? ' ・ ' + esc(c.inDate) : ''}</span>
+    </button>`).join('') || (cars.length ? '<div class="empty">見つかりません</div>' : '');
+}
+$('#mq').addEventListener('input', renderMemoList);
+$('#m-list').onclick = e => { const b = e.target.closest('.car'); if (b) openMemo(cars[+b.dataset.i]); };
+
+function openMemo(c){
+  mCar = c;
+  $('#m-no').textContent = c.no; $('#m-model').textContent = c.car;
+  $('#m-meta').textContent = `${c.plate} ・ ${c.customer || ''}`;
+  $('#m-works').innerHTML = ''; $('#m-parts').innerHTML = '';
+  $('#m-comment').value = M_COMMENT; $('#m-err').textContent = '';
+  addWork();
+  $('#m-pick').hidden = true; $('#m-form').hidden = false; $('#m-done').hidden = true;
+  window.scrollTo(0, 0);
+}
+function memoBack(){
+  mCar = null; $('#m-pick').hidden = false; $('#m-form').hidden = true; $('#m-done').hidden = true;
+  renderMemoList(); window.scrollTo(0, 0);
+}
+$('#m-chg').onclick = () => { if (memoDirty() && !confirm('書いたメモは消えます。車を変えますか？')) return; memoBack(); };
+$('#m-again').onclick = memoBack;
+$('#m-shoot').onclick = () => { const c = mCar; memoBack(); if (c) openCam(c); };
+
+function addWork(){
+  const d = document.createElement('div'); d.className = 'm-row w';
+  d.innerHTML = `<button type="button" class="m-del" aria-label="この行を消す">×</button>
+    <select class="bui"><option value="">部位を選ぶ</option>${M_PARTS.map(([g, l]) => `<optgroup label="${g}">${l.map(x => `<option>${esc(x)}</option>`).join('')}</optgroup>`).join('')}</select>
+    <div class="m-works">${M_WORKS.map(w => `<button type="button" class="sub" aria-pressed="false">${w}</button>`).join('')}</div>
+    <div class="row2"><input class="work" placeholder="作業（例: 脱着・素地ペイント）"><input class="hours" type="number" inputmode="decimal" step="0.1" min="0" placeholder="工数"></div>
+    <select class="kubun">${M_KUBUN.map(k => `<option>${k}</option>`).join('')}</select>`;
+  const kb = d.querySelector('.kubun');
+  let auto = true;
+  const sync = () => {
+    const w = d.querySelector('.work').value;
+    d.querySelectorAll('.m-works .sub').forEach(b => b.setAttribute('aria-pressed', w.split(/[・、\s]+/).indexOf(b.textContent) >= 0));
+    if (auto) kb.value = mKubun(d.querySelector('.bui').value, w);
+  };
+  d.querySelector('.m-works').onclick = e => {
+    const b = e.target.closest('.sub'); if (!b) return;
+    const inp = d.querySelector('.work'), list = inp.value.split(/[・、\s]+/).filter(Boolean), i = list.indexOf(b.textContent);
+    if (i >= 0) list.splice(i, 1); else list.push(b.textContent);
+    inp.value = list.join('・'); sync();
+  };
+  d.querySelector('.work').addEventListener('input', sync);
+  d.querySelector('.bui').addEventListener('change', sync);
+  kb.addEventListener('change', () => auto = false);
+  d.querySelector('.m-del').onclick = () => d.remove();
+  $('#m-works').appendChild(d); sync();
+}
+function addPart(){
+  const d = document.createElement('div'); d.className = 'm-row p';
+  d.innerHTML = `<button type="button" class="m-del" aria-label="この行を消す">×</button>
+    <div class="row2"><input class="pname" placeholder="部品名（例: ミラーカバー）"><input class="qty" type="number" inputmode="numeric" min="1" value="1" placeholder="数量"></div>`;
+  d.querySelector('.m-del').onclick = () => d.remove();
+  $('#m-parts').appendChild(d); d.querySelector('.pname').focus();
+}
+$('#m-addw').onclick = addWork;
+$('#m-addp').onclick = addPart;
+function memoData(){
+  const items = [...document.querySelectorAll('#m-works .w')].map(d => ({
+    部位: d.querySelector('.bui').value, 作業: d.querySelector('.work').value.trim(),
+    工数: parseFloat(d.querySelector('.hours').value) || 0, 区分: d.querySelector('.kubun').value }))
+    .filter(x => x.部位 || x.作業);
+  const parts = [...document.querySelectorAll('#m-parts .p')].map(d => ({
+    部品名: d.querySelector('.pname').value.trim(), 数量: parseInt(d.querySelector('.qty').value, 10) || 1 })).filter(x => x.部品名);
+  return { items, parts, comment: $('#m-comment').value.trim() };
+}
+const memoDirty = () => { const m = memoData(); return m.items.some(x => x.作業) || m.parts.length; };
+
+// メモの内容が読めるカード画像を作る（写真一覧で人が見ても分かる）
+function memoCard(c, m, who, when){
+  const W = 720, lines = [];
+  m.items.forEach(x => lines.push(['■', `${x.部位}　${x.作業}`, `${x.工数 ? x.工数 + 'h ' : ''}${x.区分}`]));
+  m.parts.forEach(x => lines.push(['部品', x.部品名, `×${x.数量}`]));
+  const cm = m.comment ? wrapText(m.comment, 30) : [];
+  const H = 150 + lines.length * 40 + (cm.length ? 20 + cm.length * 32 : 0) + 50;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#D7141F'; g.fillRect(0, 0, W, 64);
+  g.fillStyle = '#fff'; g.font = 'bold 32px sans-serif'; g.fillText('追加作業メモ（BPへ）', 20, 44);
+  g.fillStyle = '#1E1A1A'; g.font = 'bold 26px sans-serif'; g.fillText(`${c.no}　${c.car || ''}`.slice(0, 34), 20, 104);
+  g.font = '20px sans-serif'; g.fillStyle = '#6E6464'; g.fillText(`${c.plate || ''}`, 20, 134);
+  let y = 180;
+  g.fillStyle = '#1E1A1A';
+  lines.forEach(([a, b, r]) => {
+    g.font = 'bold 22px sans-serif'; g.fillText(a, 20, y);
+    g.font = '24px sans-serif'; g.fillText(b.slice(0, 22), a === '部品' ? 84 : 52, y);
+    g.textAlign = 'right'; g.fillText(r, W - 20, y); g.textAlign = 'left';
+    y += 40;
+  });
+  if (cm.length) { y += 10; g.font = '22px sans-serif'; g.fillStyle = '#444'; cm.forEach(t => { g.fillText(t, 20, y); y += 32; }); }
+  g.font = '18px sans-serif'; g.fillStyle = '#6E6464'; g.fillText(`${when}　${who}`, 20, H - 20);
+  return cv;
+}
+function wrapText(s, n){ const out = []; String(s).split('\n').forEach(l => { while (l.length > n) { out.push(l.slice(0, n)); l = l.slice(n); } out.push(l); }); return out.slice(0, 6); }
+// JPEGのコメント欄(FFFE)にメモのJSONを入れる。PCはここを読む
+function jpegWithMemo(dataUrl, json){
+  const bin = atob(dataUrl.split(',')[1]);
+  const b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  const body = new TextEncoder().encode('SUNAE-MEMO:' + json);
+  if (body.length > 65000) throw new Error('メモが長すぎます');
+  let at = 2;   // SOIの後ろ。JFIF(APP0)があればその後ろに入れる
+  if (b[2] === 0xFF && b[3] === 0xE0) at = 4 + ((b[4] << 8) | b[5]);
+  const seg = new Uint8Array(4 + body.length);
+  seg[0] = 0xFF; seg[1] = 0xFE; seg[2] = (body.length + 2) >> 8; seg[3] = (body.length + 2) & 255; seg.set(body, 4);
+  const out = new Uint8Array(b.length + seg.length);
+  out.set(b.subarray(0, at)); out.set(seg, at); out.set(b.subarray(at), at + seg.length);
+  let s = ''; for (let i = 0; i < out.length; i += 0x8000) s += String.fromCharCode.apply(null, out.subarray(i, i + 0x8000));
+  return 'data:image/jpeg;base64,' + btoa(s);
+}
+$('#m-send').onclick = async () => {
+  const c = mCar; if (!c) return;
+  const m = memoData();
+  $('#m-err').textContent = '';
+  const bad = m.items.find(x => !x.部位 || !x.作業);
+  if (bad) { $('#m-err').textContent = '部位と作業の両方を入れてください（いらない行は × で消す）'; return; }
+  if (!m.items.length && !m.parts.length) { $('#m-err').textContent = '追加作業か追加部品を1つ以上入れてください'; return; }
+  const who = store.get('me'), when = new Date().toLocaleString('ja-JP');
+  const json = JSON.stringify({ v: 1, no: c.no, car: c.car, plate: c.plate, items: m.items, 部品: m.parts, コメント: m.comment, staff: who, at: new Date().toISOString() });
+  const b = $('#m-send'); b.disabled = true; b.textContent = '送っています…';
+  try {
+    const dataUrl = jpegWithMemo(memoCard(c, m, who, when).toDataURL('image/jpeg', .85), json);
+    await post({ no: c.no, customer: c.customer, car: c.car, plate: c.plate, stage: 'その他', label: '追加作業', staff: who, dataUrl });
+    $('#m-done-car').textContent = `${c.no}　${c.car}　${c.plate}`;
+    $('#m-form').hidden = true; $('#m-done').hidden = false; window.scrollTo(0, 0);
+  } catch (err) { $('#m-err').textContent = '送れませんでした: ' + (err.message || err) + '（電波の良い所でもう一度押してください）'; }
+  finally { b.disabled = false; b.textContent = 'BPの作業メモへ送る'; }
+};
 
 let tt; function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
 window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'hold')) { e.preventDefault(); e.returnValue = ''; } });
