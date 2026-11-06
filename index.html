@@ -91,6 +91,10 @@ label.f textarea{min-height:64px;resize:vertical}
 .shutter:active{transform:scale(.94)}
 .status{justify-self:end;text-align:right;font-size:12px;line-height:1.5}
 .status b{font-size:20px;display:block}
+button.status{all:unset;justify-self:end;text-align:right;font-size:12px;line-height:1.5;cursor:default}
+button.status.up{cursor:pointer;background:var(--red);color:#fff;border-radius:16px;padding:8px 12px;text-align:center;font-weight:800;font-size:14px;line-height:1.3;box-shadow:0 0 0 2px #fff}
+button.status.up b{font-size:13px;font-weight:700}
+button.status.up:active{transform:scale(.95)}
 
 .thumbs img{cursor:pointer}
 .thumbs img.hold{border-color:#fff}
@@ -145,7 +149,7 @@ label.f textarea{min-height:64px;resize:vertical}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v18</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v19</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -228,7 +232,7 @@ label.f textarea{min-height:64px;resize:vertical}
   <div class="cam-bottom">
     <div class="thumbs" id="thumbs"></div>
     <button class="shutter" id="shutter" aria-label="撮る"></button>
-    <div class="status" id="status"></div>
+    <button class="status" id="status" type="button"></button>
   </div>
 </div>
 
@@ -286,7 +290,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '18';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '19';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -507,6 +511,7 @@ function closeCam(){
 }
 // 撮った写真はすぐには送らず、「終わる」で確認してからアップする
 const held = () => shots.filter(s => cur && s.no === cur.no && s.state === 'hold');
+$('#status').onclick = () => { if (held().length) openReview(); };
 $('#c-done').onclick = () => { if (!held().length) return closeCam(); openReview(); };
 
 function openReview(){
@@ -772,7 +777,9 @@ function renderCam(){
   $('#next').textContent = stage === '受付' && k < MUST.length || stage === '入庫' && k < 8 ? `次: ${labelFor(stage, k)}` : '';
   $('#next').hidden = !$('#next').textContent;
   $('#thumbs').innerHTML = here.slice(-4).reverse().map(s => `<img src="${s.thumb}" data-k="${shots.indexOf(s)}" class="${s.state === 'hold' ? 'hold' : s.state === 'done' ? 'ok' : s.state === 'err' ? 'ng' : ''}" alt="">`).join('');
-  $('#status').innerHTML = `<b>${held().length}枚</b>未アップ`;
+  const h = held().length;   // 撮った写真があれば「写真をアップ」ボタンにする（終了を押さなくても確認・アップ画面へ行ける）
+  $('#status').className = 'status' + (h ? ' up' : '');
+  $('#status').innerHTML = h ? `写真をアップ<b>${h}枚 ▶</b>` : '<b>0枚</b>未アップ';
 }
 $('#stages').onclick = e => { const b = e.target.closest('.stage'); if (!b) return; stage = b.dataset.s; renderCam(); };
 
