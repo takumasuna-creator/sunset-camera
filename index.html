@@ -166,7 +166,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v27</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v28</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -529,9 +529,18 @@ function resetRecv(){
 }
 
 // ---------- 車の一覧 ----------
+// 数字4桁は「ナンバー4桁が一致」か「受付番号の月2桁＋番号（1021 → 10-021）」だけ。それ以外はこれまで通り部分一致
+function carHit(c, q){
+  if (!q) return true;
+  if (!/^\d{4}$/.test(q)) return c.key.indexOf(q) >= 0;
+  const pm = norm(c.plate).match(/(\d{1,4})\D*$/);
+  if (pm && pm[1].padStart(4, '0') === q) return true;
+  const nm = String(c.no||'').normalize('NFKC').match(/(\d{1,2})\s*[-‐ー－]\s*(\d+)\s*$/);
+  return !!nm && nm[1].padStart(2, '0') === q.slice(0, 2) && +nm[2] === +q.slice(2);
+}
 function renderList(){
   const q = norm($('#q').value);
-  const rows = cars.filter(c => !q || c.key.indexOf(q) >= 0);
+  const rows = cars.filter(c => carHit(c, q));
   $('#count').textContent = `${rows.length}台`;
   $('#list').innerHTML = rows.slice(0, 80).map(c => `
     <button class="car" data-i="${cars.indexOf(c)}">
@@ -994,7 +1003,7 @@ const mKubun = (bui, work) => /塗装|ペイント/.test(work) ? 'ペイント' 
 function renderMemoList(){
   if ($('#v-memo').hidden) return;
   const q = norm($('#mq').value);
-  const rows = cars.filter(c => isY(c) && (!q || c.key.indexOf(q) >= 0));
+  const rows = cars.filter(c => isY(c) && carHit(c, q));
   $('#m-count').textContent = cars.length ? `ヤナセ車 ${rows.length}台` : '読み込み中…';
   $('#m-list').innerHTML = rows.slice(0, 80).map(c => `
     <button class="car" data-i="${cars.indexOf(c)}">
