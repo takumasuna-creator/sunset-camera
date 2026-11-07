@@ -166,7 +166,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v22</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v23</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -885,9 +885,30 @@ function renderCam(){
 }
 $('#stages').onclick = e => { const b = e.target.closest('.stage'); if (!b) return; stage = b.dataset.s; renderCam(); };
 
+// ---------- シャッター音（音声ファイルなしで「カシャ」を合成。マナーモード中は鳴りません） ----------
+let actx;
+function shutterSound(){
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const t0 = actx.currentTime, sr = actx.sampleRate;
+    const len = Math.round(sr * 0.12), buf = actx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {   // 「カ」(0〜35ms)と「シャ」(55ms〜)の2回の短い雑音
+      const t = i / sr;
+      const env = t < 0.035 ? Math.exp(-t * 90) : t > 0.055 ? Math.exp(-(t - 0.055) * 60) * 0.8 : 0;
+      d[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.8;
+    const g = actx.createGain(); g.gain.value = 1.6;
+    src.connect(bp).connect(g).connect(actx.destination); src.start(t0);
+  } catch (e) {}
+}
+
 $('#shutter').onclick = () => {
   const v = $('#video');
   if (!cur || !v.videoWidth) return;
+  shutterSound();
   const s = Math.min(1, MAX_EDGE / Math.max(v.videoWidth, v.videoHeight));
   const cv = document.createElement('canvas');
   cv.width = Math.round(v.videoWidth * s); cv.height = Math.round(v.videoHeight * s);
