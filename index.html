@@ -166,7 +166,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v23</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v24</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -886,22 +886,32 @@ function renderCam(){
 $('#stages').onclick = e => { const b = e.target.closest('.stage'); if (!b) return; stage = b.dataset.s; renderCam(); };
 
 // ---------- シャッター音（音声ファイルなしで「カシャ」を合成。マナーモード中は鳴りません） ----------
-let actx;
+let actx, shutterBuf;
+function makeShutter(sr){   // iPhone純正カメラ風: 金属的な「カ」→ 約70ms後に「シャッ」。カチッとした芯と軽い胴鳴りを合成
+  const len = Math.round(sr * 0.16), buf = actx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  const hit = (at, click, tail, body, amp) => {
+    let hp = 0, prev = 0;
+    for (let i = Math.round(at * sr); i < len; i++) {
+      const t = i / sr - at, n = Math.random() * 2 - 1;
+      hp = 0.82 * (hp + n - prev); prev = n;                   // 高い成分だけ残す（チッ・シャッの金属感）
+      const env = Math.exp(-t / click) * 0.9 + Math.exp(-t / tail) * 0.35;
+      const thump = Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / body);   // 機械が当たる「コッ」
+      d[i] += amp * (hp * env + thump * 0.45);
+    }
+  };
+  hit(0, 0.004, 0.018, 0.010, 0.9);      // カ
+  hit(0.068, 0.006, 0.030, 0.014, 1.0);  // シャッ
+  let m = 0; for (let i = 0; i < len; i++) m = Math.max(m, Math.abs(d[i]));
+  for (let i = 0; i < len; i++) d[i] *= 0.95 / m;
+  return buf;
+}
 function shutterSound(){
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     if (actx.state === 'suspended') actx.resume();
-    const t0 = actx.currentTime, sr = actx.sampleRate;
-    const len = Math.round(sr * 0.12), buf = actx.createBuffer(1, len, sr), d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {   // 「カ」(0〜35ms)と「シャ」(55ms〜)の2回の短い雑音
-      const t = i / sr;
-      const env = t < 0.035 ? Math.exp(-t * 90) : t > 0.055 ? Math.exp(-(t - 0.055) * 60) * 0.8 : 0;
-      d[i] = (Math.random() * 2 - 1) * env;
-    }
-    const src = actx.createBufferSource(); src.buffer = buf;
-    const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.8;
-    const g = actx.createGain(); g.gain.value = 1.6;
-    src.connect(bp).connect(g).connect(actx.destination); src.start(t0);
+    shutterBuf = shutterBuf || makeShutter(actx.sampleRate);
+    const src = actx.createBufferSource(); src.buffer = shutterBuf;
+    src.connect(actx.destination); src.start();
   } catch (e) {}
 }
 
