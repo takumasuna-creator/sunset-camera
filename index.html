@@ -166,7 +166,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v24</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v25</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -887,20 +887,25 @@ $('#stages').onclick = e => { const b = e.target.closest('.stage'); if (!b) retu
 
 // ---------- シャッター音（音声ファイルなしで「カシャ」を合成。マナーモード中は鳴りません） ----------
 let actx, shutterBuf;
-function makeShutter(sr){   // iPhone純正カメラ風: 金属的な「カ」→ 約70ms後に「シャッ」。カチッとした芯と軽い胴鳴りを合成
-  const len = Math.round(sr * 0.16), buf = actx.createBuffer(1, len, sr), d = buf.getChannelData(0);
-  const hit = (at, click, tail, body, amp) => {
+function makeShutter(sr){   // 重厚感のある低い「ガ…シャン」(一眼レフのミラー音風)。音声ファイルなしで合成
+  const dur = 0.32, len = Math.round(sr * dur), buf = actx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  const hit = (at, amp, click, tail, res, tf, tdec, tg) => {
+    const i0 = Math.round(at * sr), exc = new Float32Array(len);
     let hp = 0, prev = 0;
-    for (let i = Math.round(at * sr); i < len; i++) {
+    for (let i = i0; i < len; i++) {
       const t = i / sr - at, n = Math.random() * 2 - 1;
-      hp = 0.82 * (hp + n - prev); prev = n;                   // 高い成分だけ残す（チッ・シャッの金属感）
-      const env = Math.exp(-t / click) * 0.9 + Math.exp(-t / tail) * 0.35;
-      const thump = Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / body);   // 機械が当たる「コッ」
-      d[i] += amp * (hp * env + thump * 0.45);
+      hp = 0.85 * (hp + n - prev); prev = n;
+      exc[i] = hp * (Math.exp(-t / click) + 0.3 * Math.exp(-t / tail));
+      d[i] += amp * exc[i] + tg * Math.sin(2 * Math.PI * tf * t * (1 + 0.6 * Math.exp(-t / 0.01))) * Math.exp(-t / tdec);   // ドンという低い胴鳴り
+    }
+    for (const [f, dec, g] of res) {   // 金属ボディの低めの響き
+      const r = Math.exp(-1 / (dec * sr)), c = 2 * r * Math.cos(2 * Math.PI * f / sr);
+      let y1 = 0, y2 = 0;
+      for (let i = i0; i < len; i++) { const y = exc[i] * (1 - r) + c * y1 - r * r * y2; y2 = y1; y1 = y; d[i] += amp * g * y * 8; }
     }
   };
-  hit(0, 0.004, 0.018, 0.010, 0.9);      // カ
-  hit(0.068, 0.006, 0.030, 0.014, 1.0);  // シャッ
+  hit(0, 1, 0.003, 0.03, [[900, 0.035, 1], [1600, 0.025, 0.6], [380, 0.05, 0.8]], 95, 0.035, 0.8);      // ガ
+  hit(0.11, 1, 0.005, 0.06, [[700, 0.05, 1], [1300, 0.035, 0.6], [300, 0.07, 0.9]], 80, 0.05, 0.9);    // シャン
   let m = 0; for (let i = 0; i < len; i++) m = Math.max(m, Math.abs(d[i]));
   for (let i = 0; i < len; i++) d[i] *= 0.95 / m;
   return buf;
