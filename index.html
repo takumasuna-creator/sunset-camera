@@ -171,7 +171,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v33</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v34</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -280,6 +280,8 @@ button.status.up:active{transform:scale(.95)}
     <span class="note">平沢商会の納品書: コグニセブンへの「#」の印は準備中です。撮っておけば、できた時にまとめて付けます。</span>
   </div>
   <button class="btn" id="p-shoot" type="button">📷 納品書・出荷リストを撮る</button>
+  <label class="btn ghost" id="p-native" style="color:var(--fg);border-color:var(--line);text-align:center">📸 iPhoneのカメラで撮る（文字が一番きれい・1枚ずつ）<input type="file" id="p-native-in" accept="image/*" capture="environment" hidden></label>
+  <span class="note" style="padding:0 4px">きれいに撮るコツ: 紙を平らな所に置き、画面いっぱいに入れて、影が入らないように真上から。</span>
   <div class="card" style="display:grid;gap:8px">
     <h2 style="margin:0">🏷 部品ラベルを印刷</h2>
     <span class="note">紙を読み取ると、部品1点ずつのラベル（A4・12面）をPCが作ります。押すとPDFが開くので、共有ボタン→「プリント」で印刷してください。</span>
@@ -612,8 +614,15 @@ $('#list').onclick = e => { const b = e.target.closest('.car'); if (b) openCam(c
 // 写真ホルダーの「部品入荷」フォルダーへ送る（GASの変更なし）。入庫先を Y横浜 にしてコグニ取込へのコピーを止める。
 // PCの bp_tool（parts_arrival.py）が読み取り、修理依頼書に「済」の印を付けて LINE WORKS に知らせる
 const PARTS_CAR = { no: '部品入荷', customer: 'Y横浜', car: '部品の納品書', plate: '', dest: 'ヤナセBP', parts: true };
-const PARTS_EDGE = 2600, PARTS_KB = 900;   // 文字を読むので車の写真より細かく送る
+const PARTS_EDGE = 3200, PARTS_KB = 1500;   // 文字を読むので車の写真より細かく送る（v34で細かく）
 $('#p-shoot').onclick = () => openCam(PARTS_CAR);
+// iPhone標準のカメラで撮る(写真の画質が高い)。撮った写真は確認画面に並べて、いつも通りアップ
+$('#p-native-in').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  await openCam(PARTS_CAR);
+  $('#roll').onchange({ target: { files, value: '' } });
+};
 // 部品ラベル: PCが 部品入荷フォルダーの「書類」に置いた 部品ラベル_*.pdf を新しい順に出す
 let labelList = [];
 async function loadLabels(){
@@ -654,7 +663,8 @@ async function openCam(c, first){
   $('#cam').hidden = false; $('#cam-err').hidden = true;
   renderCam();
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+    const hi = c.parts;   // 部品の紙は文字を読むので、カメラも高い解像度で開く
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: hi ? 3840 : 1920 }, height: { ideal: hi ? 2880 : 1440 } }, audio: false });
     $('#video').srcObject = stream;
   } catch (err) {
     $('#cam-err').hidden = false;
