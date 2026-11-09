@@ -126,6 +126,8 @@ button.status.up:active{transform:scale(.95)}
 #gal,#gview{position:fixed;inset:0;z-index:26;background:#111;color:#fff;display:grid;grid-template-rows:auto 1fr auto}
 #gview{z-index:27}
 #gview .rv-foot{grid-template-columns:1fr}
+.g-row{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.g-row .btn.ghost{font-size:17px;font-weight:800}
 .g-sec{grid-column:1/-1;font-size:13px;font-weight:800;margin-top:8px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:3px}
 .g-sec i{font-style:normal;font-weight:400;opacity:.7;margin-left:4px}
 #g-grid{grid-auto-rows:max-content}
@@ -171,7 +173,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v34</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v35</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -343,7 +345,7 @@ button.status.up:active{transform:scale(.95)}
   <div class="rv-foot">
     <button class="btn ghost" id="g-cogni" type="button" hidden style="background:#fff;color:var(--red);border:0;font-weight:800">⚡ 今すぐコグニセブンへ入れる</button>
     <button class="btn ghost" id="g-fix" type="button" hidden style="border:0;font-size:14px;padding:8px">入庫先を訂正する</button>
-    <button class="btn" id="g-back" type="button">撮影に戻る</button>
+    <div class="g-row"><button class="btn" id="g-back" type="button">撮影に戻る</button><button class="btn ghost" id="g-end" type="button">終了</button></div>
   </div>
 </div>
 <div id="gview" hidden>
@@ -859,6 +861,12 @@ $('#g-back').onclick = () => {
   if (pick) { pick = null; showPick(); renderGal(); return; }   // 選んでいる途中なら「やめる」
   $('#gal').hidden = true; galGen++;
 };
+// 終了: この車の作業を終えて車選びへ戻る（撮ったままの写真があれば、先に確認・アップ画面を出す）
+$('#g-end').onclick = () => {
+  $('#gal').hidden = true; galGen++; pick = null;
+  if (held().length) return openReview();
+  closeCam();
+};
 // 至急: PCのコグニ自動取り込みに「この車を最優先で」と頼む。
 // 車フォルダーに「至急コグニ」という小さな依頼カードの画像を送ると、PCの常駐がそれを見つけて
 // この車の写真をすぐ見積へ入れ、依頼カードは消す（GASの変更なしで動く仕組み）
@@ -872,10 +880,12 @@ function showPick(){
     b.textContent = pick.size ? `✓ 選んだ${pick.size}枚をコグニセブンへ入れる` : 'コグニに入れる写真を押して選んでください';
     b.disabled = !pick.size;
     $('#g-back').textContent = 'やめる';
+    $('#g-end').hidden = true;
     $('#g-fix').hidden = true;
   } else {
     if (cur) $('#g-fix').hidden = !!cur.parts;
     $('#g-back').textContent = '撮影に戻る';
+    $('#g-end').hidden = false;
     if (cur) { b.textContent = urgentLabel(cur); b.disabled = false; }
   }
 }
@@ -914,7 +924,7 @@ $('#g-cogni').onclick = async () => {
     const r = await res.json();
     if (!r.ok) throw new Error(r.error);
     toast(files.length ? `PCに頼みました。選んだ${files.length}枚が数分で${dest}に入ります` : `PCに頼みました。数分で${dest}に入ります`);
-    if (pick) { pick = null; $('#g-back').textContent = '撮影に戻る'; renderGal(); }
+    if (pick) { pick = null; $('#g-back').textContent = '撮影に戻る'; $('#g-end').hidden = false; renderGal(); }
     b.textContent = '✓ 依頼しました（数分で入ります）';
     setTimeout(() => { b.disabled = false; b.textContent = urgentLabel(c); }, 60000);
   } catch (err) {
