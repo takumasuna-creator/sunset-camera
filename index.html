@@ -171,7 +171,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v32</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v33</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -280,6 +280,12 @@ button.status.up:active{transform:scale(.95)}
     <span class="note">平沢商会の納品書: コグニセブンへの「#」の印は準備中です。撮っておけば、できた時にまとめて付けます。</span>
   </div>
   <button class="btn" id="p-shoot" type="button">📷 納品書・出荷リストを撮る</button>
+  <div class="card" style="display:grid;gap:8px">
+    <h2 style="margin:0">🏷 部品ラベルを印刷</h2>
+    <span class="note">紙を読み取ると、部品1点ずつのラベル（A4・12面）をPCが作ります。押すとPDFが開くので、共有ボタン→「プリント」で印刷してください。</span>
+    <div id="p-labels" style="display:grid;gap:6px"><span class="note">読み込み中…</span></div>
+    <button class="btn ghost" id="p-lreload" type="button" style="color:var(--fg);border-color:var(--line)">ラベルの一覧を更新</button>
+  </div>
 </main>
 
 <nav class="tabs" id="tabs">
@@ -489,6 +495,7 @@ function showTab(t){
   $('#v-memo').hidden = !memo;
   $('#head h1').firstChild.textContent = recv ? '受付' : memo ? '作業メモ' : parts ? '部品入荷' : '作業';
   $('#sub').textContent = recv ? '入庫した車を登録して写真フォルダーを作る' : memo ? 'ヤナセ車の追加作業・追加部品をBPへ' : parts ? '届いた部品の紙を撮るだけ' : '車を押すとカメラが開きます';
+  if (parts) loadLabels();
   if (recv) loadBoot(); else if (!parts) { if (memo) renderMemoList(); loadCars(); }
   window.scrollTo(0, 0);
 }
@@ -607,6 +614,35 @@ $('#list').onclick = e => { const b = e.target.closest('.car'); if (b) openCam(c
 const PARTS_CAR = { no: '部品入荷', customer: 'Y横浜', car: '部品の納品書', plate: '', dest: 'ヤナセBP', parts: true };
 const PARTS_EDGE = 2600, PARTS_KB = 900;   // 文字を読むので車の写真より細かく送る
 $('#p-shoot').onclick = () => openCam(PARTS_CAR);
+// 部品ラベル: PCが 部品入荷フォルダーの「書類」に置いた 部品ラベル_*.pdf を新しい順に出す
+let labelList = [];
+async function loadLabels(){
+  const box = $('#p-labels');
+  box.innerHTML = '<span class="note">読み込み中…</span>';
+  try {
+    const r = await (await fetch(API + '?api=photos&lite=1&pin=' + encodeURIComponent(store.get('pin')) + '&no=' + encodeURIComponent(PARTS_CAR.no))).json();
+    if (!r.ok) throw new Error(r.error);
+    labelList = r.data.filter(p => p.pdf && /部品ラベル/.test(p.name || '')).sort((a, b) => (b.name || '').localeCompare(a.name || '')).slice(0, 8);
+    box.innerHTML = labelList.length ? labelList.map((p, i) => {
+      const m = (p.name || '').match(/部品ラベル_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})_?(\d+点)?/);
+      const t = m ? `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}　${m[6] || ''}` : esc(p.name);
+      return `<button class="btn ghost" data-l="${i}" type="button" style="color:var(--fg);border-color:var(--line);justify-content:flex-start">🏷 ${t}${i === 0 ? '（最新）' : ''}</button>`;
+    }).join('') : '<span class="note">まだラベルはありません。</span>';
+  } catch (err) { box.innerHTML = `<span class="note">読み込めませんでした: ${esc(err.message || err)}</span>`; }
+}
+$('#p-lreload').onclick = loadLabels;
+$('#p-labels').onclick = async e => {
+  const b = e.target.closest('[data-l]'); if (!b) return;
+  const p = labelList[+b.dataset.l];
+  const w = window.open('', '_blank');
+  toast('ラベルを開いています…');
+  try {
+    const r = await (await fetch(API + '?api=photo&pin=' + encodeURIComponent(store.get('pin')) + '&id=' + encodeURIComponent(p.id))).json();
+    if (!r.ok) throw new Error(r.error);
+    const href = URL.createObjectURL(await (await fetch(r.data)).blob());
+    if (w) w.location.href = href; else location.assign(href);
+  } catch (err) { if (w) w.close(); toast('開けませんでした: ' + (err.message || err)); }
+};
 
 // ---------- カメラ ----------
 async function openCam(c, first){
