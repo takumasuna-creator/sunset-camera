@@ -24,7 +24,7 @@ header h1{margin:0;font-size:18px;font-weight:800;flex:1;min-width:0}
 header small{display:block;font-size:11px;opacity:.85;font-weight:400}
 .me{all:unset;cursor:pointer;font-size:12px;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:3px 10px}
 main{padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 90px);display:grid;gap:10px}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr 1fr;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.tabs button{all:unset;cursor:pointer;text-align:center;padding:8px 0 10px;font-size:13px;color:var(--muted);display:grid;justify-items:center;gap:2px}
 nav.tabs svg{width:24px;height:24px}
 nav.tabs button[aria-current="true"]{color:var(--red);font-weight:700}
@@ -168,7 +168,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v29</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v30</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -267,10 +267,22 @@ button.status.up:active{transform:scale(.95)}
   </div>
 </main>
 
+<!-- 部品入荷：納品書・出荷リストを撮る → PCが読み取って修理依頼書に「済」の印 -->
+<main id="v-parts" hidden>
+  <div class="card" style="display:grid;gap:8px">
+    <h2 style="margin:0">届いた部品の紙を撮る</h2>
+    <span class="note">ヤナセの<b>出荷リスト</b>や平沢商会の<b>納品書</b>を、紙全体が入るように真上から撮ってください。車を選ぶ必要はありません。何枚でもOKです。</span>
+    <span class="note">ヤナセの部品: 数分でPCが読み取り、その車の<b>修理依頼書</b>（アプリの「アップ済み写真」→書類）に「済」の印を付けます。結果はLINE WORKSに届きます。</span>
+    <span class="note">平沢商会の納品書: コグニセブンへの「#」の印は準備中です。撮っておけば、できた時にまとめて付けます。</span>
+  </div>
+  <button class="btn" id="p-shoot" type="button">📷 納品書・出荷リストを撮る</button>
+</main>
+
 <nav class="tabs" id="tabs">
   <button data-tab="recv" aria-current="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>受付</button>
   <button data-tab="work" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>作業</button>
   <button data-tab="memo" aria-current="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h4"/></svg>作業メモ</button>
+  <button data-tab="parts" aria-current="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>部品入荷</button>
 </nav>
 
 <!-- カメラ（開いたまま、シャッターを押すたびに保存） -->
@@ -347,7 +359,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '29';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '30';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -435,14 +447,15 @@ async function loadCars(){
 let lastRecv = null;
 function showTab(t){
   document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-current', x.dataset.tab === t));
-  const recv = t === 'recv', memo = t === 'memo';
-  $('#v-list').hidden = recv || memo;
+  const recv = t === 'recv', memo = t === 'memo', parts = t === 'parts';
+  $('#v-list').hidden = recv || memo || parts;
+  $('#v-parts').hidden = !parts;
   $('#v-recv').hidden = !recv || !!lastRecv;
   $('#v-done').hidden = !recv || !lastRecv;
   $('#v-memo').hidden = !memo;
-  $('#head h1').firstChild.textContent = recv ? '受付' : memo ? '作業メモ' : '作業';
-  $('#sub').textContent = recv ? '入庫した車を登録して写真フォルダーを作る' : memo ? 'ヤナセ車の追加作業・追加部品をBPへ' : '車を押すとカメラが開きます';
-  if (recv) loadBoot(); else { if (memo) renderMemoList(); loadCars(); }
+  $('#head h1').firstChild.textContent = recv ? '受付' : memo ? '作業メモ' : parts ? '部品入荷' : '作業';
+  $('#sub').textContent = recv ? '入庫した車を登録して写真フォルダーを作る' : memo ? 'ヤナセ車の追加作業・追加部品をBPへ' : parts ? '届いた部品の紙を撮るだけ' : '車を押すとカメラが開きます';
+  if (recv) loadBoot(); else if (!parts) { if (memo) renderMemoList(); loadCars(); }
   window.scrollTo(0, 0);
 }
 $('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); };
@@ -554,11 +567,19 @@ function renderList(){
 $('#q').addEventListener('input', renderList);
 $('#list').onclick = e => { const b = e.target.closest('.car'); if (b) openCam(cars[+b.dataset.i]); };
 
+// ---------- 部品入荷 ----------
+// 写真ホルダーの「部品入荷」フォルダーへ送る（GASの変更なし）。入庫先を Y横浜 にしてコグニ取込へのコピーを止める。
+// PCの bp_tool（parts_arrival.py）が読み取り、修理依頼書に「済」の印を付けて LINE WORKS に知らせる
+const PARTS_CAR = { no: '部品入荷', customer: 'Y横浜', car: '部品の納品書', plate: '', dest: 'ヤナセBP', parts: true };
+const PARTS_EDGE = 2600, PARTS_KB = 900;   // 文字を読むので車の写真より細かく送る
+$('#p-shoot').onclick = () => openCam(PARTS_CAR);
+
 // ---------- カメラ ----------
 async function openCam(c, first){
   cur = c; stage = first || 'その他'; camFirst = stage;   // 工程は選ばない。受付から開いた時だけ車検証などを順に案内する
   $('#c-no').textContent = c.no;
   $('#c-car').textContent = `${c.car}　${c.plate}`;
+  $('#next').textContent = '';
   $('#cam').hidden = false; $('#cam-err').hidden = true;
   renderCam();
   try {
@@ -601,7 +622,7 @@ $('#rv-up').onclick = () => {
   relabel();
   held().forEach(s => {
     s.id = Date.now() + '_' + Math.random().toString(36).slice(2);
-    s.dataUrl = toJpeg(s.canvas); s.canvas = null; s.state = 'wait';
+    s.dataUrl = toJpeg(s.canvas, s.car && s.car.parts ? PARTS_KB : MAX_KB); s.canvas = null; s.state = 'wait';
     queue.put({ id: s.id, no: s.no, car: s.car, stage: s.stage, label: s.label, thumb: s.thumb, dataUrl: s.dataUrl });
   });
   $('#review').hidden = true; closeCam(); pump(); showSending();
@@ -637,14 +658,14 @@ $('#roll').onchange = async e => {
     try {
       const url = URL.createObjectURL(f);
       const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = url; });
-      const r = Math.min(1, MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+      const r = Math.min(1, (cur.parts ? PARTS_EDGE : MAX_EDGE) / Math.max(img.naturalWidth, img.naturalHeight));
       const cv = document.createElement('canvas');
       cv.width = Math.round(img.naturalWidth * r); cv.height = Math.round(img.naturalHeight * r);
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
       URL.revokeObjectURL(url);
       const t = document.createElement('canvas'); t.width = 640; t.height = Math.round(640 * cv.height / cv.width);
       t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
-      shots.push({ no: cur.no, car: cur, stage: 'その他', label: '', canvas: cv, thumb: t.toDataURL('image/jpeg', .7), state: 'hold' });
+      shots.push({ no: cur.no, car: cur, stage: 'その他', label: cur.parts ? '納品書' : '', canvas: cv, thumb: t.toDataURL('image/jpeg', .7), state: 'hold' });
     } catch (err) { toast('読み込めない写真がありました'); }
   }
   renderCam(); openReview();
@@ -725,7 +746,7 @@ async function openGal(){
   $('#g-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>保存済みの写真と書類（押すと大きく見られます）</small>`;
   $('#gal').hidden = false;
   pick = null; showPick();
-  $('#g-cogni').hidden = false;
+  $('#g-cogni').hidden = !!cur.parts;   // 部品の紙はBP・コグニへ上げない
   $('#g-cogni').textContent = urgentLabel(cur);   // ヤナセの車はBPシステム、それ以外はコグニセブン
   // 前に見た一覧があれば、まずそれをすぐ出す（裏で最新に入れ替える）
   const old = await cacheDb.get('list', norm(no));
@@ -927,11 +948,11 @@ $('#shutter').onclick = () => {
   const v = $('#video');
   if (!cur || !v.videoWidth) return;
   shutterSound();
-  const s = Math.min(1, MAX_EDGE / Math.max(v.videoWidth, v.videoHeight));
+  const s = Math.min(1, (cur.parts ? PARTS_EDGE : MAX_EDGE) / Math.max(v.videoWidth, v.videoHeight));
   const cv = document.createElement('canvas');
   cv.width = Math.round(v.videoWidth * s); cv.height = Math.round(v.videoHeight * s);
   cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-  const label = labelFor(stage, held().filter(x => x.stage === stage).length);
+  const label = cur.parts ? '納品書' : labelFor(stage, held().filter(x => x.stage === stage).length);
   const t = document.createElement('canvas'); t.width = 640; t.height = Math.round(640 * cv.height / cv.width);   // 確認用
   t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
   shots.push({ no: cur.no, car: cur, stage, label, canvas: cv, thumb: t.toDataURL('image/jpeg', .7), state: 'hold' });
@@ -971,8 +992,8 @@ let retryT;
 function retryErr(){ if (!shots.some(s => s.state === 'err')) return; shots.forEach(s => { if (s.state === 'err') s.state = 'wait'; }); pump(); showSending(); }
 window.addEventListener('online', retryErr);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retryErr(); });
-function toJpeg(cv){
-  const limit = MAX_KB * 1024 * 1.37;
+function toJpeg(cv, kb){
+  const limit = (kb || MAX_KB) * 1024 * 1.37;
   let c = cv;
   for (let round = 0; round < 6; round++) {
     for (const q of [0.85, 0.75, 0.65, 0.55]) {
