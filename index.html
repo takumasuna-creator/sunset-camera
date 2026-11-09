@@ -164,11 +164,14 @@ button.status.up:active{transform:scale(.95)}
 .m-works .sub{padding:6px 10px;font-size:13px}
 .m-add{all:unset;cursor:pointer;text-align:center;padding:10px;border-radius:10px;border:1px dashed var(--muted);color:var(--muted);font-weight:700;font-size:14px}
 .m-ok{font-size:22px;font-weight:900}
+#s-fix form{max-height:calc(100vh - 32px);overflow:auto;color:var(--fg)}
+#s-fix .kinds .kind{padding:12px 8px;font-size:15px}
+#s-fix select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);width:100%}
 </style>
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v31</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v32</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -228,6 +231,7 @@ button.status.up:active{transform:scale(.95)}
   </div>
   <button class="btn" id="d-shoot" type="button">📷 車検証・コーションラベル・メーターから撮る</button>
   <button class="btn ghost" id="d-next" type="button" style="color:var(--fg);border-color:var(--line)">続けて受付する</button>
+  <button class="btn ghost" id="d-fix" type="button" style="color:var(--muted);border:0;font-size:14px">入庫先を間違えた時はこちらで訂正</button>
 </main>
 
 <!-- 作業メモ：ヤナセ車の追加作業・追加部品をBPの作業メモへ -->
@@ -330,6 +334,7 @@ button.status.up:active{transform:scale(.95)}
   <div class="rv-grid" id="g-grid"></div>
   <div class="rv-foot">
     <button class="btn ghost" id="g-cogni" type="button" hidden style="background:#fff;color:var(--red);border:0;font-weight:800">⚡ 今すぐコグニセブンへ入れる</button>
+    <button class="btn ghost" id="g-fix" type="button" hidden style="border:0;font-size:14px;padding:8px">入庫先を訂正する</button>
     <button class="btn" id="g-back" type="button">撮影に戻る</button>
   </div>
 </div>
@@ -348,6 +353,35 @@ button.status.up:active{transform:scale(.95)}
   <h2>あなたの名前</h2><input id="myname" placeholder="例: 渡邊" autocomplete="off">
   <button class="btn">決定</button>
 </form></div>
+<div class="modal" id="s-fix" hidden><form id="f-fix">
+  <h2>入庫先を訂正</h2>
+  <span class="note" id="fx-now"></span>
+  <div class="kinds">
+    <button type="button" class="kind" data-k="yUsed" aria-pressed="false">ヤナセ中古車<small>仕入二課</small></button>
+    <button type="button" class="kind" data-k="yShop" aria-pressed="false">ヤナセ一般<small>多摩・所沢など</small></button>
+    <button type="button" class="kind wide" data-k="general" aria-pressed="false">一般・業者・保険<small>写真→コグニセブン</small></button>
+  </div>
+  <div id="fx-yshop" hidden style="display:grid;gap:8px">
+    <div class="subs" id="fx-shops" style="grid-template-columns:1.2fr 1fr .7fr">
+      <button type="button" class="sub" aria-pressed="false">ヤナセ多摩支店</button>
+      <button type="button" class="sub" aria-pressed="false">ヤナセ所沢</button>
+      <button type="button" class="sub" aria-pressed="false">DRP</button>
+    </div>
+    <input id="fx-shop" placeholder="ほかは自由に記入" style="font-size:16px">
+  </div>
+  <div id="fx-general" hidden style="display:grid;gap:8px">
+    <div class="chips" id="fx-custs"></div>
+    <input id="fx-customer" placeholder="お客様名・業者名" style="font-size:16px">
+    <div class="row2">
+      <label class="f"><span>入庫先の区分</span><select id="fx-category"></select></label>
+      <label class="f"><span>請求先</span><select id="fx-bill"></select></label>
+    </div>
+  </div>
+  <span class="note" id="fx-hint"></span>
+  <span class="err" id="fx-err"></span>
+  <button class="btn" id="fx-ok">訂正する</button>
+  <button class="btn ghost" id="fx-cancel" type="button" style="color:var(--fg);border-color:var(--line)">やめる</button>
+</form></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -359,7 +393,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '30';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '32';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -748,6 +782,7 @@ async function openGal(){
   $('#gal').hidden = false;
   pick = null; showPick();
   $('#g-cogni').hidden = !!cur.parts;   // 部品の紙はBP・コグニへ上げない
+  $('#g-fix').hidden = !!cur.parts;
   $('#g-cogni').textContent = urgentLabel(cur);   // ヤナセの車はBPシステム、それ以外はコグニセブン
   // 前に見た一覧があれば、まずそれをすぐ出す（裏で最新に入れ替える）
   const old = await cacheDb.get('list', norm(no));
@@ -791,7 +826,9 @@ function showPick(){
     b.textContent = pick.size ? `✓ 選んだ${pick.size}枚をコグニセブンへ入れる` : 'コグニに入れる写真を押して選んでください';
     b.disabled = !pick.size;
     $('#g-back').textContent = 'やめる';
+    $('#g-fix').hidden = true;
   } else {
+    if (cur) $('#g-fix').hidden = !!cur.parts;
     $('#g-back').textContent = '撮影に戻る';
     if (cur) { b.textContent = urgentLabel(cur); b.disabled = false; }
   }
@@ -1172,6 +1209,85 @@ $('#m-send').onclick = async () => {
     $('#m-form').hidden = true; $('#m-done').hidden = false; window.scrollTo(0, 0);
   } catch (err) { $('#m-err').textContent = '送れませんでした: ' + (err.message || err) + '（電波の良い所でもう一度押してください）'; }
   finally { b.disabled = false; b.textContent = 'BPの作業メモへ送る'; }
+};
+
+// ---------- 入庫先の訂正 ----------
+// 受付後に入庫先を間違えた時。GASが売上集計表・管理番号・写真フォルダー名・写真の名前をまとめて直す
+// （PCのBP/コグニの自動処理はフォルダー名で振り分けるので、送り先もこれで切り替わる）
+let fixCar = null, fixKind = '';
+const kindOf = c => /^Y\d/.test(c.no) ? 'yUsed' : isY(c) ? 'yShop' : 'general';
+async function openFix(c){
+  fixCar = c;
+  await loadBoot();
+  $('#fx-category').innerHTML = $('#r-category').innerHTML;
+  $('#fx-bill').innerHTML = $('#r-bill').innerHTML;
+  $('#fx-custs').innerHTML = custs.map((x, i) => `<button type="button" class="sub" data-c="${i}" aria-pressed="false">${esc(x.name)}</button>`).join('');
+  $('#fx-now').textContent = `${c.no}　${c.car}　今の入庫先: ${c.customer || '（空欄）'}`;
+  $('#fx-err').textContent = '';
+  const k = kindOf(c);
+  $('#fx-shop').value = k === 'yShop' ? c.customer : '';
+  $('#fx-customer').value = k === 'general' ? c.customer : '';
+  $('#fx-category').value = ''; $('#fx-bill').value = '';
+  setFixKind(k);
+  $('#s-fix').hidden = false;
+}
+function setFixKind(k){
+  fixKind = k;
+  document.querySelectorAll('#s-fix .kind').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === k));
+  $('#fx-yshop').hidden = k !== 'yShop';
+  $('#fx-general').hidden = k !== 'general';
+  const from = kindOf(fixCar), top = x => x === 'yUsed';
+  const toY = k !== 'general', fromY = from !== 'general';
+  $('#fx-hint').textContent = top(from) !== top(k) ? '管理番号が変わります（売上集計表の別の段へ移します）。'
+    + (toY !== fromY ? '写真の送り先も ' + (toY ? 'ヤナセBPシステム' : 'コグニセブン') + ' に変わります。' : '')
+    : toY !== fromY ? `管理番号は ${k === 'general' ? fixCar.no.replace(/^YY/, '') : 'YY' + fixCar.no.replace(/^YY/, '')} になり、写真の送り先が ${toY ? 'ヤナセBPシステム' : 'コグニセブン'} に変わります。` : '';
+}
+document.querySelector('#s-fix .kinds').onclick = e => { const b = e.target.closest('.kind'); if (b) setFixKind(b.dataset.k); };
+$('#fx-shops').onclick = e => { const b = e.target.closest('.sub'); if (b) $('#fx-shop').value = b.textContent; };
+$('#fx-custs').onclick = e => {
+  const b = e.target.closest('.sub'); if (!b) return;
+  const c = custs[+b.dataset.c];
+  $('#fx-customer').value = c.name;
+  const pick = (sel, v) => { if (v && [...$(sel).options].some(o => o.value === v)) $(sel).value = v; };
+  pick('#fx-category', c.category); pick('#fx-bill', c.billTo);
+};
+$('#fx-cancel').onclick = () => { $('#s-fix').hidden = true; };
+$('#d-fix').onclick = () => { if (lastRecv) openFix(lastRecv.car); };
+$('#g-fix').onclick = () => { if (cur) openFix(cur); };
+$('#f-fix').onsubmit = async e => {
+  e.preventDefault();
+  if (!fixKind) return;
+  const customer = fixKind === 'yShop' ? $('#fx-shop').value.trim() : fixKind === 'general' ? $('#fx-customer').value.trim() : '';
+  if (fixKind === 'general' && !customer) { $('#fx-err').textContent = 'お客様名・業者名を入れてください'; return; }
+  if (shots.some(s => s.no === fixCar.no && (s.state === 'wait' || s.state === 'up' || s.state === 'err'))) {
+    $('#fx-err').textContent = 'この車の写真を送っている途中です。送り終わってからもう一度押してください'; return;
+  }
+  const b = $('#fx-ok'); b.disabled = true; b.textContent = '訂正中…'; $('#fx-err').textContent = '';
+  try {
+    const r = await post({ action: 'changeKind', no: fixCar.no, kind: fixKind, customer, category: $('#fx-category').value, billTo: $('#fx-bill').value });
+    if (!r || !r.car) throw new Error('サーバー側の更新（GASの貼り付け）がまだのようです');
+    const old = fixCar.no;
+    const i = cars.findIndex(x => x.no === old);
+    if (i >= 0) { r.car.key = cars[i].key; cars[i] = Object.assign({}, cars[i], r.car); } else cars.unshift(r.car);
+    cars.forEach(c => c.key = norm([c.no, c.no.replace(/(\d+)-0*(\d+)/,'$1$2'), c.car, c.plate, c.customer].join(' ')));
+    if (lastRecv && lastRecv.car.no === old) {
+      lastRecv = Object.assign({}, lastRecv, { no: r.no, car: r.car, sheet: r.sheet, row: r.row });
+      $('#d-no').textContent = r.no;
+      $('#d-where').textContent = `売上集計表「${r.sheet}」${r.row}行目 ・ 写真→${isY(r.car) ? 'ヤナセBPシステム' : 'コグニセブン'}`;
+    }
+    shots.forEach(s => { if (s.no === old) { s.no = r.no; if (s.car && s.car !== cur) Object.assign(s.car, r.car); } });   // まだ送っていない写真も新しい番号で送る
+    if (cur && cur.no === old) {
+      Object.assign(cur, r.car);
+      $('#c-no').textContent = cur.no;
+      if (!$('#gal').hidden) openGal();
+    }
+    renderList(); renderMemoList();
+    $('#s-fix').hidden = true;
+    alert(`訂正しました\n${r.oldNo} → ${r.no}（${r.car.customer}）\n売上集計表「${r.sheet}」${r.row}行目` + (r.notes.length ? '\n\n' + r.notes.map(n => '・' + n).join('\n') : ''));
+  } catch (err) {
+    const m = String(err.message || err);
+    $('#fx-err').textContent = /工程が正しくありません/.test(m) ? 'サーバー側の更新（GASの貼り付け）がまだのようです' : m;
+  } finally { b.disabled = false; b.textContent = '訂正する'; }
 };
 
 let tt; function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
