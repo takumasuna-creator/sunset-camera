@@ -132,6 +132,8 @@ button.status.up:active{transform:scale(.95)}
 #g-grid .rv{aspect-ratio:auto;min-height:max-content}
 #g-grid .rv img,#g-grid .rv .pdf{aspect-ratio:4/3;height:auto;position:static}
 .rv.doc{background:#f4f4f4;color:#222}
+.rv .sent{position:absolute;top:4px;left:4px;background:var(--ok);color:#fff;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.gv-sent{display:inline-block;background:var(--ok);color:#fff;font-size:12px;font-weight:800;padding:1px 7px;border-radius:6px;margin-left:8px;vertical-align:middle}
 #g-grid.picking .rv{outline:2px solid transparent;outline-offset:-2px}
 #g-grid.picking .rv.sel{outline-color:#fff}
 #g-grid.picking .rv.sel::after{content:"✓";position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:800;font-size:16px}
@@ -166,7 +168,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v28</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v29</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -345,7 +347,7 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '22';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '29';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -684,6 +686,7 @@ function renderGal(){
       const th = thumbs[p.id] || p.thumb || '';
       return `<div class="rv${p.stage === '書類' ? ' doc' : ''}${pick && pick.has(p.id) ? ' sel' : ''}" data-g="${galList.indexOf(p)}" style="cursor:pointer">`
         + (th ? `<img src="${th}" alt="">` : p.pdf ? `<span class="pdf" data-th="${p.id}">PDF</span>` : `<img src="${BLANK}" data-th="${p.id}" alt="">`)
+        + (p.sent ? '<b class="sent">アップ済み</b>' : '')   // BP・コグニに上がった写真（サーバーが判定）
         + (p.label ? `<span>${esc(p.label)}</span>` : '') + '</div>';
     }).join('');
   }).join('');
@@ -847,7 +850,7 @@ async function loadBig(p){
 async function showBig(i){
   const p = galSeq[i]; if (!p) return;
   galAt = i;
-  $('#gv-head').innerHTML = `${esc(p.stage || 'その他')}${p.label ? '・' + esc(p.label) : ''}<small>${i + 1} / ${galSeq.length}　左右にスワイプで前後の写真</small>`;
+  $('#gv-head').innerHTML = `${esc(p.stage || 'その他')}${p.label ? '・' + esc(p.label) : ''}${p.sent ? '<span class="gv-sent">アップ済み</span>' : ''}<small>${i + 1} / ${galSeq.length}　左右にスワイプで前後の写真</small>`;
   $('#gv-img').src = thumbs[p.id] || p.thumb || '';
   $('#gview').hidden = false;
   try { const d = await loadBig(p); if (galAt === i && !$('#gview').hidden) $('#gv-img').src = d; }
