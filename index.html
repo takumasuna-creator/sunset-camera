@@ -173,13 +173,22 @@ button.status.up:active{transform:scale(.95)}
 .m-add{all:unset;cursor:pointer;text-align:center;padding:10px;border-radius:10px;border:1px dashed var(--muted);color:var(--muted);font-weight:700;font-size:14px}
 .m-ok{font-size:22px;font-weight:900}
 #s-fix form{max-height:calc(100vh - 32px);overflow:auto;color:var(--fg)}
+/* 要望（v40） */
+#s-yb form{max-height:calc(100vh - 32px);overflow:auto;color:var(--fg)}
+#s-yb textarea{font:inherit;font-size:16px;color:var(--fg);padding:10px 12px;border:1px solid var(--line);border-radius:10px;width:100%;min-height:120px;resize:vertical}
+.yb-pics{display:flex;gap:8px;flex-wrap:wrap}
+.yb-pics:empty{display:none}
+.yb-pic{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#eee}
+.yb-pic img{width:100%;height:100%;object-fit:cover}
+.yb-pic button{all:unset;cursor:pointer;position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
 #s-fix .kinds .kind{padding:12px 8px;font-size:15px}
 #s-fix select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);width:100%}
 </style>
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v39</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v40</small>
+  <button class="me" id="yb-open" type="button">💡要望</button>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -369,6 +378,23 @@ button.status.up:active{transform:scale(.95)}
   <h2>あなたの名前</h2><input id="myname" placeholder="例: 渡邊" autocomplete="off">
   <button class="btn">決定</button>
 </form></div>
+<div class="modal" id="s-yb" hidden><form id="f-yb">
+  <h2>💡 要望・困りごとを送る</h2>
+  <span class="note">アプリやPCの自動化について「こうしてほしい」「ここが使いにくい」「動かない」など何でもどうぞ。TAKUMAさんに届きます。</span>
+  <div class="chips" id="yb-kinds">
+    <button type="button" class="sub" aria-pressed="true">こうしてほしい</button>
+    <button type="button" class="sub" aria-pressed="false">使いにくい・困った</button>
+    <button type="button" class="sub" aria-pressed="false">動かない・エラー</button>
+    <button type="button" class="sub" aria-pressed="false">その他</button>
+  </div>
+  <textarea id="yb-text" placeholder="例: 受付で車名を毎回打つのが大変。車検証の写真から自動で入るようにしてほしい"></textarea>
+  <span class="note">🎤 キーボードのマイクを押すと、話すだけで入力できます</span>
+  <div class="yb-pics" id="yb-pics"></div>
+  <label class="btn ghost" style="color:var(--fg);border-color:var(--line)">📎 画面写真・写真を付ける（3枚まで）<input type="file" id="yb-file" accept="image/*" multiple hidden></label>
+  <span class="err" id="yb-err"></span>
+  <button class="btn" id="yb-send">送る</button>
+  <button class="btn ghost" id="yb-cancel" type="button" style="color:var(--muted);border:0;padding:6px">やめる</button>
+</form></div>
 <div class="modal" id="s-fix" hidden><form id="f-fix">
   <h2>入庫先を訂正</h2>
   <span class="note" id="fx-now"></span>
@@ -418,7 +444,7 @@ const HINT = {
   '損傷': '傷・へこみに近づいて。大きさがわかる1枚も',
 };
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '38';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '40';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -466,7 +492,7 @@ function start(){
     });
   }
   keepMe();
-  if (!started) { started = true; resumeQueue(); }
+  if (!started) { started = true; resumeQueue(); setTimeout(ybRetry, 3000); }
   if (!store.get('pin')) { $('#s-pin').hidden = false; return; }
   if (!store.get('me')) $('#s-me').hidden = false;
   $('#me').textContent = store.get('me') || '担当者';
@@ -1423,6 +1449,64 @@ $('#f-fix').onsubmit = async e => {
     $('#fx-err').textContent = /工程が正しくありません/.test(m) ? 'サーバー側の更新（GASの貼り付け）がまだのようです' : m;
   } finally { b.disabled = false; b.textContent = '訂正する'; }
 };
+
+// ---------- 要望（v40） ----------
+// ヘッダーの「💡要望」から、文章（音声入力OK）と写真3枚までを送る。GASが「要望」シートに記録し、PCの通知係がLINE WORKSへ知らせる。
+// 送れなかった時（電波・サーバーが古い）はスマホの中に置いておき、次に開いた時に自動で送る
+let ybPics = [];
+function ybReset(){ $('#yb-text').value = ''; ybPics = []; ybRender(); $('#yb-err').textContent = '';
+  document.querySelectorAll('#yb-kinds .sub').forEach((b, i) => b.setAttribute('aria-pressed', i === 0)); }
+function ybRender(){ $('#yb-pics').innerHTML = ybPics.map((d, i) => `<div class="yb-pic"><img src="${d}" alt=""><button type="button" data-i="${i}" aria-label="外す">×</button></div>`).join(''); }
+$('#yb-open').onclick = () => { $('#yb-err').textContent = ''; $('#s-yb').hidden = false; };
+$('#yb-cancel').onclick = () => { $('#s-yb').hidden = true; };
+$('#yb-kinds').onclick = e => { const b = e.target.closest('.sub'); if (!b) return;
+  document.querySelectorAll('#yb-kinds .sub').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+$('#yb-pics').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; ybPics.splice(+b.dataset.i, 1); ybRender(); };
+function ybLoad(file){
+  return new Promise((ok, ng) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url); ok(toJpeg(cv, 400));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); ng(new Error('画像を読めませんでした')); };
+    img.src = url;
+  });
+}
+$('#yb-file').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  for (const f of files) {
+    if (ybPics.length >= 3) { toast('写真は3枚までです'); break; }
+    try { ybPics.push(await ybLoad(f)); ybRender(); } catch (err) { $('#yb-err').textContent = err.message; }
+  }
+};
+async function ybPost(item){ return post({ action: 'youbou', id: item.id, kind: item.kind, text: item.text, staff: item.staff, screen: item.screen, ver: item.ver, photos: item.photos }); }
+$('#f-yb').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('#yb-text').value.trim();
+  if (!text && !ybPics.length) { $('#yb-err').textContent = '内容を書いてください'; return; }
+  const k = document.querySelector('#yb-kinds .sub[aria-pressed="true"]');
+  const item = { id: 'yb_' + Date.now() + '_' + Math.floor(Math.random() * 1000), kind: k ? k.textContent : '', text,
+    staff: store.get('me'), screen: $('#head h1').firstChild.textContent.trim(), ver: 'v' + VERSION, photos: ybPics.slice() };
+  const btn = $('#yb-send'); btn.disabled = true; btn.textContent = '送っています…';
+  try {
+    await ybPost(item);
+    toast('要望を送りました。ありがとうございます！');
+  } catch (err) {
+    await queue.put(item);   // 送れなくても消さない
+    toast('今は送れなかったので、スマホに保存しました。次に開いた時に自動で送ります');
+  }
+  btn.disabled = false; btn.textContent = '送る';
+  $('#s-yb').hidden = true; ybReset();
+};
+async function ybRetry(){
+  const items = ((await queue.all()) || []).filter(it => String(it.id).indexOf('yb_') === 0);
+  for (const it of items) { try { await ybPost(it); await queue.del(it.id); toast('保存していた要望を送りました'); } catch (e) { return; } }
+}
+window.addEventListener('online', ybRetry);
 
 let tt; function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
 window.addEventListener('beforeunload', e => { if (shots.some(s => s.state === 'hold')) { e.preventDefault(); e.returnValue = ''; } });
