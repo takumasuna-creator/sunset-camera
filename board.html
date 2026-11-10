@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工程ボード</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Klee+One:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+:root{
+  --bg:#E9EAE6; --wb:#FBFBF8; --ink:#1A1D21; --sub:#5B6068; --lane:#E8C531; --blue:#3A6FD8; --bar:#2F5FB3;
+  --red:#D32F2F; --yellow:#F2B705; --hand:'Klee One',cursive; --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:'Noto Sans JP',-apple-system,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+#vp{position:fixed;inset:0;overflow:auto}
+#sizer{position:relative}
+#cv{position:absolute;left:0;top:0;width:2440px;padding:20px;display:flex;flex-direction:column;gap:16px;transform-origin:0 0;background:var(--bg)}
+/* ヘッダー */
+.hd{background:var(--ink);color:#fff;border-radius:8px;padding:10px 20px;display:flex;align-items:center;gap:26px;min-height:78px}
+.hd .ttl{display:flex;flex-direction:column;gap:2px;white-space:nowrap}
+.hd .ttl small{font-size:13px;color:#C9CCD1}
+.hd .ttl b{font-size:24px;font-weight:900}
+.tabs{display:flex;gap:6px}
+.tabs button{font:inherit;font-size:18px;font-weight:700;padding:9px 18px;border-radius:8px;border:1px solid #5B6068;background:#2A2E34;color:#fff;cursor:pointer}
+.tabs button.on{background:#fff;color:var(--ink);border-color:#fff}
+.hint{display:flex;align-items:center;gap:8px;font-size:14px;color:#C9CCD1;white-space:nowrap}
+.hint i{width:10px;height:10px;border-radius:5px;background:#4ADE80;display:inline-block}
+.hint.err i{background:#FF6B6B}
+.last{flex:1 1 auto;display:flex;flex-direction:column;gap:2px;font-size:13px;min-width:0}
+.last span{color:#C9CCD1}
+.last b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dv{background:#2A2E34;border-radius:8px;padding:6px 14px;white-space:nowrap;border-left:8px solid #4ADE80}
+.dv.warn{border-left-color:var(--yellow)} .dv.bad{border-left-color:#FF4D4D} .dv.none{border-left-color:#8A8F96}
+.dv .d{font-size:13px;color:#C9CCD1} .dv .n{font-size:22px;font-weight:900} .dv .n small{font-size:13px;color:#C9CCD1;font-weight:500;margin-left:6px}
+.fit{font:inherit;font-size:14px;font-weight:700;padding:0 14px;min-height:44px;border-radius:8px;border:1px solid #5B6068;background:#2A2E34;color:#fff;cursor:pointer;white-space:nowrap}
+/* ホワイトボードの枠 */
+.wb{background:var(--wb);border:3px solid var(--ink);border-radius:4px}
+.flex{display:flex} .stack{display:flex;flex-direction:column;gap:16px} .gap{gap:16px} .grow{flex:1 1 auto;min-width:0}
+.ch{height:38px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:16px;border-bottom:2px solid var(--ink);white-space:nowrap;padding:0 6px}
+.ch.l{justify-content:flex-start;padding:0 12px}
+.badge{background:var(--blue);color:#fff;border-radius:3px;padding:0 7px;font-size:13px;font-weight:700}
+.vcol{display:flex;flex-direction:column;border-right:2px solid var(--ink)}
+.vcol.b3{border-right-width:3px} .vcol:last-child{border-right:0}
+.cards{padding:6px 5px;display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start;min-height:128px}
+.lanes{background-image:repeating-linear-gradient(to right,transparent 0 120px,var(--lane) 120px 122px)}
+.z.over{background-color:#DCE8FF !important;outline:4px solid var(--blue);outline-offset:-4px}
+/* 作業者の行 */
+.gh{height:38px;display:flex;border-bottom:2px solid var(--ink);font-weight:700;font-size:17px}
+.gh>span{display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1.15}
+.wr{display:flex;min-height:132px;border-bottom:2px solid var(--ink)} .wr:last-child{border-bottom:0}
+.nm{width:40px;flex:0 0 40px;border-right:2px solid var(--ink)}
+.wr .nm{writing-mode:vertical-rl;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;letter-spacing:.1em;padding:6px 0}
+.wr .nm.none{color:#8A8F96;font-size:14px}
+.c370{width:370px;flex:0 0 370px} .c250{width:250px;flex:0 0 250px} .c122{width:122px;flex:0 0 122px} .c252{width:252px;flex:0 0 252px}
+.br3{border-right:3px solid var(--ink)} .br2{border-right:2px solid var(--ink)}
+.prog{height:8px;background:#E3E4DF;border-bottom:2px solid var(--ink);display:flex}
+.prog i{display:block;height:8px;background:#1F5FBF}
+.mag{width:52px;flex:0 0 52px;border-left:2px solid var(--ink);display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 0 10px}
+.mag .z{width:44px;min-height:0;padding:4px 0;display:flex;flex-direction:column;align-items:center;border-radius:6px}
+.mag b{width:34px;height:34px;border-radius:17px;color:#fff;font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 3px rgba(0,0,0,.3)}
+.mag small{font-size:11px;font-family:var(--mono);color:var(--sub);margin-top:2px}
+/* 売上 */
+.sales{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.sales .t{font-weight:700;font-size:16px}
+.sales .big{font-size:38px;font-weight:900;font-family:var(--mono)}
+.sales .note{font-size:12px;color:var(--sub)}
+.sales .hand{font-size:15px;font-family:var(--hand)}
+.ppl{display:grid;grid-template-columns:110px minmax(0,1fr) 110px;gap:8px;align-items:center;font-size:14px}
+.ppl .b{height:12px;background:#E3E4DF} .ppl .b i{display:block;height:12px;background:var(--bar)}
+.ppl .a{font-family:var(--mono);text-align:right}
+/* 日別の入庫・出庫 */
+.days{display:grid;gap:16px}
+.day{background:var(--wb);border:3px solid #8A8F96;border-radius:4px;display:flex;flex-direction:column;min-height:150px}
+.day.today{border-color:var(--ink)}
+.day .dh{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:2px solid var(--ink)}
+.day .dh b{font-weight:900;font-size:19px} .day .dh span{font-size:12px;color:var(--sub)}
+.ln{display:grid;grid-template-columns:140px 52px minmax(0,1fr);gap:10px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--ink);font-size:15px;font-family:var(--hand);background:var(--wb)}
+.ln .who{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ln .in{background:#fff;border:1px solid var(--ink);text-align:center;font-family:'Noto Sans JP';font-size:12px;padding:1px 0}
+.ln .out{background:var(--blue);color:#fff;text-align:center;font-family:'Noto Sans JP';font-size:12px;padding:2px 0}
+.ln .wt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ln .ok{color:#1E8E3E;font-family:'Noto Sans JP';font-size:12px;font-weight:700;margin-left:6px}
+.ln .ng{color:var(--red);font-family:'Noto Sans JP';font-size:12px;font-weight:700;margin-left:6px}
+.ln.tk{cursor:grab;touch-action:none}
+.ln.s-red{box-shadow:inset 6px 0 0 var(--red)} .ln.s-yellow{box-shadow:inset 6px 0 0 var(--yellow)}
+/* 札 */
+.cd{width:112px;height:116px;position:relative;flex:0 0 auto;touch-action:none;cursor:grab}
+.cd .bd{width:112px;height:116px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.slip .bd{padding:6px 7px;background:#fff;border:1px dashed #8A8F96;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.22)}
+.slip .r1{display:flex;justify-content:space-between;font-size:10px;font-family:var(--mono)}
+.slip.hp .r1{padding-right:17px}
+.slip .wk{font-size:9px;line-height:1.35;flex:1 1 auto;overflow:hidden;white-space:pre-line}
+.slip .am{font-size:10px;font-family:var(--hand);text-align:right;color:#3A3F46;min-height:13px}
+.slip .md{font-size:13px;font-weight:900;font-family:var(--mono);letter-spacing:-.02em;white-space:nowrap;overflow:hidden}
+.slip .r5{display:flex;justify-content:space-between;align-items:flex-end;font-size:10px;font-family:var(--mono)}
+.slip .r5 .f{color:var(--sub);white-space:nowrap;overflow:hidden}
+.slip .pl{border-left:2px solid var(--red);border-top:2px solid var(--red);padding:1px 3px 0;font-weight:700;font-size:12px}
+.sticky .bd{padding:7px 8px;border-radius:1px;box-shadow:0 2px 4px rgba(0,0,0,.22);font-family:var(--hand)}
+.sticky .pd{font-size:11px;font-weight:600;white-space:nowrap}
+.sticky .wk{font-size:11px;line-height:1.3;flex:1 1 auto;overflow:hidden;white-space:pre-line}
+.sticky .r3{display:flex;justify-content:space-between;gap:4px;font-size:10px}
+.sticky .r3 b{font-weight:600;white-space:nowrap;overflow:hidden}
+.sticky .r3 span{white-space:nowrap}
+.sticky .cu{font-size:10px;text-align:right;white-space:nowrap;overflow:hidden}
+.pin{position:absolute;right:-6px;top:-8px;width:28px;height:28px;border-radius:14px;color:#fff;font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 3px rgba(0,0,0,.3);pointer-events:none}
+.cd.s-red .bd{outline:4px solid var(--red);outline-offset:1px}
+.cd.s-yellow .bd{outline:4px solid var(--yellow);outline-offset:1px}
+.why{position:absolute;left:4px;bottom:-9px;max-width:104px;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap;overflow:hidden;pointer-events:none;font-family:'Noto Sans JP'}
+.s-yellow .why{background:var(--yellow);color:var(--ink)}
+.ghost{position:fixed;pointer-events:none;z-index:50;opacity:.95;transform-origin:0 0}
+.ghost .bd{box-shadow:0 12px 30px rgba(0,0,0,.35)}
+.tk.dragging{opacity:.25}
+/* 編集パネル（拡大縮小しない） */
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:60}
+.sheet.on{display:flex}
+.box{background:#fff;border-radius:16px;width:min(760px,94vw);max-height:92vh;overflow:auto;padding:20px 22px}
+.box h3{margin:0 0 4px;font-size:24px}
+.box .sub{color:var(--sub);font-size:15px;margin-bottom:12px}
+.row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;margin:10px 0}
+.row label{font-weight:800;font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font:inherit;font-size:16px;padding:9px 13px;border-radius:10px;border:2px solid #cfd5db;background:#fff;font-weight:700;cursor:pointer}
+.chips button.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.chips.col button{min-width:72px;color:var(--ink)}
+.chips.col button.on{outline:4px solid var(--ink);outline-offset:1px;color:var(--ink)}
+input[type=date],input[type=text],textarea{font:inherit;font-size:18px;padding:9px 10px;border:2px solid #cfd5db;border-radius:10px;width:100%}
+textarea{min-height:70px;-webkit-user-select:text;user-select:text}
+.acts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.acts button{font:inherit;font-size:18px;font-weight:800;padding:12px 22px;border-radius:12px;border:0;cursor:pointer}
+.btn-save{background:var(--blue);color:#fff} .btn-cancel{background:#e3e7eb}
+.pinbox{position:fixed;inset:0;background:var(--ink);display:none;align-items:center;justify-content:center;z-index:80;color:#fff}
+.pinbox.on{display:flex}
+.pinbox form{display:grid;gap:12px;width:min(360px,90vw)}
+.pinbox input{font-size:28px;text-align:center}
+.pinbox button{font:inherit;font-size:20px;font-weight:800;padding:14px;border-radius:12px;border:0;background:var(--red);color:#fff}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:16px;display:none;z-index:90}
+</style>
+</head>
+<body>
+<div id="vp"><div id="sizer"><div id="cv">
+  <header class="hd">
+    <div class="ttl"><small id="hTitle">工程ボード（ホワイトボード版）</small><b id="hDate"></b></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="hint" id="hint"><i></i><span id="sync">指で札を動かす → 工程が変わる（スプレッドシートに自動記録）・タップで編集</span></div>
+    <div class="last"><span>直前の更新</span><b id="last">—</b></div>
+    <div class="flex" style="gap:10px" id="deliv"></div>
+    <button class="fit" id="fit"></button>
+  </header>
+  <div id="board" class="stack"></div>
+</div></div></div>
+
+<div class="sheet" id="sheet"><div class="box" id="box"></div></div>
+<div class="pinbox" id="pin"><form id="pinForm"><div style="font-size:20px;font-weight:800;text-align:center">工程ボード</div>
+  <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+  <input id="nameInput" type="text" placeholder="この画面の名前（例：二本木 事務所前）" autocomplete="off" style="font-size:18px;text-align:center">
+  <button>はじめる</button></form></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 設定 =====
+// サンエーBPアプリ（Googleのウェブアプリ）のURL。カメラ画面（index.html）と同じ
+const API = 'https://script.google.com/macros/s/AKfycbxFZ3V3-OeyrNbRpultnG4Gbgo7vIO8Dhyouo9MNOcYIdtBDz_1-QDbvLGSzd4jz-Gi/exec';
+const QS = new URLSearchParams(location.search);
+// ?f=宮寺BP / ?f=宮寺 / ?f=二本木BP / ?f=二本木 でそのタブから開く
+const INIT_FACTORY = (function(){ const v = (QS.get('f') || '').trim();
+  if (!v) return ''; if (v.indexOf('宮寺') >= 0) return '宮寺BP'; if (v.indexOf('二本木') >= 0) return '二本木BP'; return ''; })();
+const POLL_MS = 15000, CANVAS_W = 2440;
+const DONE = ['完成車', 'ルークリ完成車', '出庫済み'];
+// 今の工程から完成までの標準日数（仮。実績を見て直す）
+const REMAIN = {'見積り待ち':5,'部品待ち':4,'作業待ち':4,'鈑金':3.5,'組付':3,'塗装待ち':3,'下地':2.5,'塗装':1.5,'磨き':1,'減衰テスト待ち':0.5,'ルークリ中':0.5,'完成車':0,'ルークリ完成車':0};
+// 1つの工程に止まってよい日数（超えたら黄、さらに1日超えたら赤）
+const DWELL = {'作業待ち':2,'鈑金':2,'組付':1,'塗装待ち':2,'下地':2,'塗装':2,'磨き':1,'減衰テスト待ち':1,'ルークリ中':1};
+const WD = ['日','月','火','水','木','金','土'];
+const PIN_COLOR = {'月':'#6A4FB3','火':'#E8590C','水':'#2E7D32','木':'#C2185B','金':'#00897B','土':'#D9468F','日':'#3A6FD8'};
+const STICKY = {'ピンク':'#F8BBD0','緑':'#BDE8A9','オレンジ':'#F9A46F','黄':'#F6E57E','水色':'#A9DCEF'};
+// カメラ画面と同じ場所に置いたので、カメラ画面で入れたPIN・名前もそのまま使う
+const ALT = { pin: 'pin', name: 'me' };
+const store = { get(k){ try{ return localStorage.getItem('board_'+k) || (ALT[k] && localStorage.getItem(ALT[k])) || ''; }catch(e){ return ''; } },
+                set(k,v){ try{ localStorage.setItem('board_'+k, v); }catch(e){} } };
+
+// ===== サーバー（BPアプリ）とのやりとり =====
+// ?demo=1 で開くと見本データ（BPアプリにつながない）
+const LIVE = QS.get('demo') !== '1';
+async function call(fn, ...args){
+  if (!LIVE) return Mock[fn](...args);
+  let res;
+  try {
+  if (fn === 'boardLoad') {
+    res = await fetch(API + '?api=board&pin=' + encodeURIComponent(args[0] || '') + '&t=' + Date.now(), { cache: 'no-store' });
+  } else {
+    const [pin, key, patch, by] = args;
+    res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'boardSave', pin, key, patch, by }) });
+  }
+  } catch (e) {   // Wi-Fiが切れている、またはBPアプリ側にボードがまだ入っていない（案内のページが返ってきて読めない）
+    throw new Error('BPアプリにつながりません（Wi-Fi、またはBPアプリにボードがまだ入っていない可能性があります）');
+  }
+  if (!res) throw new Error('通信できません');
+  const text = await res.text();
+  let r; try { r = JSON.parse(text); } catch (e) { r = null; }
+  // BPアプリ（Apps Script）にボードの部分がまだ入っていないと、JSONではなく案内のページが返ってくる
+  if (!r || (r.ok === false && /工程ボードはまだ/.test(r.error || ''))) throw new Error('BPアプリにボードがまだ入っていません（Apps Scriptへの追加が必要です）');
+  if (!r.ok) throw new Error(r.error || '不明なエラー');
+  return r.data;
+}
+
+// ===== 状態 =====
+let data = null, factory = INIT_FACTORY || store.get('factory') || '', busy = false, lastOk = 0, scale = 1;
+let fitMode = store.get('fit') || 'w';   // w＝横幅に合わせる（縦はスクロール） / all＝全体が1画面に入る
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const yen = n => '¥' + Math.round(n || 0).toLocaleString('ja-JP');
+function toast(t){ const el = $('toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => el.style.display = 'none', 2600); }
+
+// ===== 日付 =====
+function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function parse(s){ const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s||''); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
+function md(s){ const d = parse(s); if (d) return (d.getMonth()+1) + '/' + d.getDate(); const m = /(\d{1,2})[\/月](\d{1,2})/.exec(s||''); return m ? (+m[1]) + '/' + (+m[2]) : String(s||''); }
+function isOff(d){ return d.getDay() === 0 || (data.settings.holidays||[]).indexOf(ymd(d)) >= 0; }
+function workdaysUntil(due){
+  const t = parse(data.today); let n = 0;
+  if (due <= t) return due < t ? -1 : 0;
+  for (let d = new Date(t); d < due; d.setDate(d.getDate()+1)) if (!isOff(d)) n++;
+  return n;
+}
+function nextWorkday(from, k){ const d = new Date(from); let n = 0; while (n < k){ d.setDate(d.getDate()+1); if (!isOff(d)) n++; } return d; }
+function workDays(n, fromToday){ const out = []; let d = parse(data.today); if (!fromToday || isOff(d)) d = nextWorkday(d, 1); while (out.length < n){ out.push(new Date(d)); d = nextWorkday(d, 1); } return out; }
+
+// ===== 信号 =====
+function signal(it){
+  if (DONE.indexOf(it.stage) >= 0) return { cls:'s-done', why:'' };
+  let level = 0, why = [];
+  const due = parse(it.due);
+  if (due){
+    const w = workdaysUntil(due), need = REMAIN[it.stage] != null ? REMAIN[it.stage] : 2;
+    if (w < 0){ level = 2; why.push('納期超過'); }
+    else if (w < need){ level = 2; why.push('間に合わない'); }
+    else if (w - need < 1){ level = Math.max(level,1); why.push('余裕なし'); }
+  }
+  if (DWELL[it.stage] && it.since){
+    const days = (data.now - it.since) / 86400000;
+    if (days > DWELL[it.stage] + 1){ level = 2; why.push(Math.floor(days) + '日止まり'); }
+    else if (days > DWELL[it.stage]){ level = Math.max(level,1); why.push(Math.floor(days) + '日止まり'); }
+  }
+  if (!due && level === 0) return { cls:'s-none', why:'納期未定' };
+  return { cls: ['', 's-yellow', 's-red'][level], why: why.join('・') };
+}
+
+// ===== 車の見分け =====
+const isDone = it => DONE.indexOf(it.stage) >= 0;
+const isY = it => /^Y\d/.test(it.no) || /^Y横浜|ヤナセ横浜/.test(it.customer);   // ヤナセ横浜の中古車＝白い伝票の札
+const inMiya = it => it.factory === '宮寺BP' || (!it.factory && it.factories.indexOf('宮寺BP') >= 0);
+const inNihon = it => it.factory === '二本木BP' || (!it.factory && it.factories.indexOf('二本木BP') >= 0 && it.factories.length === 1);
+const surname = s => String(s||'').trim().split(/[\s　]+/)[0];
+const sameStaff = (a, b) => !!a && !!b && (a === b || surname(a) === surname(b));
+function defaultColor(it){
+  if (/ヤナセ横浜|^Y横浜/.test(it.customer)) return '水色';
+  if (/ヤナセ/.test(it.customer)) return '緑';
+  if (/^T.*(BPC|BP)/.test(it.customer)) return 'ピンク';
+  return 'オレンジ';
+}
+function byDue(a, b){ return (a.due||'9999') < (b.due||'9999') ? -1 : (a.due||'9999') > (b.due||'9999') ? 1 : a.no < b.no ? -1 : 1; }
+
+// ===== 札（カード） =====
+// Y番号＝白い伝票（日付・番号・作業・金額・車名・ナンバー4桁）、それ以外＝付箋（期間・作業・車名・番号・お客様）
+function card(it){
+  const sg = signal(it), due = parse(it.due);
+  const day = due ? WD[due.getDay()] : '';
+  const pin = day ? `<span class="pin" style="background:${PIN_COLOR[day]}">${day}</span>` : '';
+  const why = (sg.cls === 's-red' || sg.cls === 's-yellow') && sg.why ? `<span class="why">${esc(sg.why)}</span>` : '';
+  const amts = it.amounts || {};
+  const amt = amts[factory] || amts['宮寺BP'] || amts['二本木BP'] || 0;
+  const away = it.factory && it.factory !== factory ? it.factory.replace('BP','') : '';
+  const no = /^Y\d/.test(it.no) ? it.no.slice(1) : it.no;
+  if (isY(it)){
+    const plate4 = (String(it.plate).match(/(\d[\d\s]*)$/) || ['',''])[1].replace(/\s/g,'').slice(-4);
+    return `<div class="cd slip tk ${pin ? 'hp ' : ''}${sg.cls}" data-key="${esc(it.key)}"><div class="bd">
+      <span class="r1"><span>${esc(md(it.inDate))}</span><span>${esc(no)}</span></span>
+      <span class="wk">${esc(it.memo)}</span>
+      <span class="am">${amt ? Number(amt).toLocaleString('ja-JP') : ''}</span>
+      <span class="md">${esc(it.car)}</span>
+      <span class="r5"><span class="f">${esc(away || (it.staff ? surname(it.staff) : ''))}</span><span class="pl">${esc(plate4 || '----')}</span></span>
+    </div>${pin}${why}</div>`;
+  }
+  const bg = STICKY[it.color] || STICKY[defaultColor(it)];
+  const period = (it.inDate ? md(it.inDate) : '') + '〜' + (it.due ? md(it.due) : '');
+  return `<div class="cd sticky tk ${sg.cls}" data-key="${esc(it.key)}"><div class="bd" style="background:${bg}">
+      <span class="pd">${esc(period)}</span>
+      <span class="wk">${esc(it.memo)}</span>
+      <span class="r3"><b>${esc(it.car)}</b><span>${esc(no)}</span></span>
+      <span class="cu">${esc(away ? away + '・' : '')}${esc(it.customer)}</span>
+    </div>${pin}${why}</div>`;
+}
+
+// ===== 札を置ける場所 =====
+// match＝ここに出す札、patch＝ここに置いたときに変える項目
+let ZONES = {}, zoneSeq = 0;
+function zid(title, patch){ const id = 'z' + (zoneSeq++); ZONES[id] = { title: title, patch: patch }; return id; }
+function list(match){ return data.items.filter(match).sort(byDue); }
+// 札が並ぶ枠
+function cards(title, match, patch, cls, style){
+  const id = zid(title, patch);
+  return `<div class="z cards ${cls||''}" data-zone="${id}" style="${style||''}">${list(match).map(card).join('')}</div>`;
+}
+// 見出し付きの縦の列
+function column(title, match, patch, opt){
+  opt = opt || {};
+  const n = list(match).length;
+  return `<div class="vcol ${opt.cls||''}" style="${opt.style||''}"><div class="ch">${esc(title)}${opt.badge ? `<span class="badge">${n}台</span>` : ''}</div>
+    ${cards(title, match, patch, opt.lanes ? 'lanes grow' : 'grow')}</div>`;
+}
+// 見出し付きのパネル
+function panel(title, match, patch, opt){
+  opt = opt || {};
+  const n = list(match).length;
+  return `<div class="wb flex" style="flex-direction:column;${opt.style||''}"><div class="ch ${opt.left?'l':''}">${esc(title)}${opt.badge!==false ? `<span class="badge">${n}台</span>` : ''}</div>
+    ${cards(title, match, patch, 'grow', 'padding:8px;min-height:' + (opt.minH || 128) + 'px')}</div>`;
+}
+// 日別の入庫・出庫（その日に置くと納車予定日がその日になる）
+function dayBoxes(days){
+  return `<div class="days" style="grid-template-columns:repeat(${days.length},minmax(0,1fr))">` + days.map(d => {
+    const k = ymd(d), label = `${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）`;
+    const id = zid(label + 'の出庫', () => ({ due: k }));
+    const q = (data.settings.quota || {})[d.getDay()] || 0;
+    let rows = q ? `<div class="ln"><span class="who">ヤナセ横浜</span><span class="in">入庫</span><span class="wt">${q}台</span></div>` : '';
+    rows += list(it => it.due === k).map(it => {
+      const sg = signal(it), ok = isDone(it);
+      return `<div class="ln tk ${ok ? '' : sg.cls}" data-key="${esc(it.key)}"><span class="who">${esc(it.customer)}</span><span class="out">出庫</span>
+        <span class="wt">${esc(it.car)} ${esc(/^Y\d/.test(it.no) ? it.no.slice(1) : it.no)}${ok ? '<span class="ok">完成</span>' : `<span class="ng">${esc(it.stage)}</span>`}</span></div>`;
+    }).join('');
+    return `<div class="z day ${k === data.today ? 'today' : ''}" data-zone="${id}"><div class="dh"><b>${label}</b><span>お客様／納引／車名・作業内容</span></div>${rows}</div>`;
+  }).join('') + `</div>`;
+}
+// 売上（売上集計表から）
+function salesPanels(f){
+  const s = (data.sales || {})[f] || { total: 0, people: [], month: new Date().getMonth()+1 };
+  const notes = data.items.filter(it => (f === '宮寺BP' ? inMiya(it) : inNihon(it)) && /要確認|不可|注意|連絡|※/.test(it.memo || '')).slice(0, 5);
+  const max = Math.max(1, ...s.people.map(p => p.amt));
+  return `<div class="wb sales" style="flex:1 1 0"><span class="t">工賃売上（${s.month}月）</span><span class="big">${yen(s.total)}</span>
+      <span class="note">売上集計表から自動反映（5分ごと）</span>
+      <span class="t" style="margin-top:8px">連絡事項</span>
+      ${notes.length ? notes.map(it => `<span class="hand">${esc(/^Y\d/.test(it.no) ? it.no.slice(1) : it.no)} ${esc(it.car)}：${esc(String(it.memo).replace(/\n/g,' '))}</span>`).join('') : '<span class="hand" style="color:#8A8F96">（札のメモに「要確認」などと書くとここに出ます）</span>'}
+    </div>
+    <div class="wb sales" style="flex:1.3 1 0;gap:7px"><span class="t">個人別売上（${s.month}月）</span>
+      ${s.people.length ? s.people.map(p => `<div class="ppl"><span>${esc(p.name)}</span><div class="b"><i style="width:${Math.round(p.amt / max * 100)}%"></i></div><span class="a">${yen(p.amt)}</span></div>`).join('') : '<span class="note">個人売上のタブが見つかりません</span>'}
+    </div>`;
+}
+// 作業者×工程の行
+function workerRows(names, f, cols){
+  const known = it => names.some(n => sameStaff(it.staff, n));
+  const extra = data.items.some(it => inMiya(it) && cols.some(c => c.stage === it.stage) && !known(it));
+  return names.concat(extra ? [''] : []).map(w => `<div class="wr"><span class="nm ${w ? '' : 'none'}">${esc(w || '担当なし')}</span>` +
+    cols.map((c, i) => cards(c.stage + '・' + (w || '担当なし'),
+      it => it.stage === c.stage && inMiya(it) && (w ? sameStaff(it.staff, w) : !known(it)),
+      () => ({ stage: c.stage, staff: w, factory: f }), (c.lanes ? 'lanes ' : '') + (i < cols.length - 1 ? 'br3 ' : 'grow ') + (c.w || ''))).join('') + `</div>`).join('');
+}
+
+// ===== タブ =====
+const TABS = [['', '共有'], ['宮寺BP', '宮寺BP'], ['二本木BP', '二本木BP']];
+
+// 共有：工程を左から右へ（両工場の全部の車）
+function layoutShared(){
+  const cols = data.stages.filter(s => s !== '出庫済み');
+  return `<div class="wb flex">${cols.map((s, i) => column(s, it => it.stage === s, () => ({ stage: s }),
+      { badge: true, cls: 'grow' + (i === 2 || i === 4 || i === 10 ? ' b3' : ''), style: 'flex:1 1 0;min-width:0' })).join('')}</div>
+    ${dayBoxes(workDays(6, true))}`;
+}
+
+// 宮寺BP：前に作ったホワイトボード版と同じ並び
+function layoutMiya(){
+  const g = data.settings.groups || {}, F = '宮寺BP';
+  const body = g.miyaBody || [], paint = g.miyaPaint || [];
+  const target = data.settings.paintTarget || 810000;
+  const painting = data.items.filter(it => inMiya(it) && it.stage === '塗装').reduce((a, it) => a + ((it.amounts || {})[F] || 0), 0);
+  const mags = workDays(4, false).map(d => { const k = ymd(d), w = WD[d.getDay()], id = zid(`${d.getMonth()+1}/${d.getDate()}納車`, () => ({ due: k }));
+    return `<div class="z" data-zone="${id}"><b style="background:${PIN_COLOR[w]}">${w}</b><small>${d.getMonth()+1}/${d.getDate()}</small></div>`; }).join('');
+  const notY = it => !isY(it);
+  return `<div class="flex" style="gap:20px;align-items:flex-start">
+    <div class="stack" style="width:1150px;flex:0 0 1150px">
+      <div class="wb flex">
+        ${column('見積り待ち', it => it.stage === '見積り待ち' && inMiya(it), () => ({ stage: '見積り待ち', factory: F }), { cls: 'c122' })}
+        ${column('部品待ち', it => it.stage === '部品待ち' && inMiya(it), () => ({ stage: '部品待ち', factory: F }), { cls: 'c122' })}
+        ${column('作業待ち', it => it.stage === '作業待ち' && inMiya(it) && notY(it), () => ({ stage: '作業待ち', factory: F }), { cls: 'c122 b3' })}
+        <div class="grow flex" style="flex-direction:column">
+          <div class="gh"><span class="nm"></span><span class="c370 br3">鈑金</span><span class="grow">組み付け</span></div>
+          ${workerRows(body, F, [{ stage: '鈑金', lanes: true, w: 'c370' }, { stage: '組付', lanes: true }])}
+        </div>
+      </div>
+      <div class="flex gap">${salesPanels(F)}</div>
+    </div>
+    <div class="stack grow">
+      <div class="wb flex">
+        ${column('塗装待ち', it => it.stage === '塗装待ち' && inMiya(it), () => ({ stage: '塗装待ち', factory: F }), { cls: 'c252 b3', badge: true })}
+        <div class="grow flex" style="flex-direction:column">
+          <div class="gh"><span class="nm"></span><span class="c370 br3">下地</span>
+            <span class="c250 br3"><span style="font-size:14px">一日${Math.round(target/10000)}万 塗装目標</span><span style="font-size:12px;font-family:var(--mono);color:#1F5FBF">塗装中 ${yen(painting)} / ${yen(target)}</span></span>
+            <span class="grow">磨き</span></div>
+          <div class="prog"><span style="width:412px"></span><span style="width:250px;display:flex"><i style="width:${Math.min(100, Math.round(painting / target * 100))}%"></i></span></div>
+          ${workerRows(paint, F, [{ stage: '下地', lanes: true, w: 'c370' }, { stage: '塗装', w: 'c250' }, { stage: '磨き' }])}
+        </div>
+        <div class="mag">${mags}</div>
+      </div>
+      <div class="flex gap" style="align-items:stretch">
+        ${panel('ヤナセ 着工待ち', it => it.stage === '作業待ち' && inMiya(it) && isY(it), () => ({ stage: '作業待ち', factory: F }), { left: true, style: 'width:664px;flex:0 0 664px' })}
+        <div class="grow" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+          ${panel('ヤナセ完成車', it => it.stage === '完成車' && isY(it), () => ({ stage: '完成車' }), { minH: 100 })}
+          ${panel('一般 完成車', it => it.stage === '完成車' && !isY(it), () => ({ stage: '完成車' }), { minH: 100 })}
+          ${panel('ルークリ作業中', it => (it.stage === 'ルークリ中' || it.stage === '減衰テスト待ち') && inMiya(it), () => ({ stage: 'ルークリ中' }), { minH: 100 })}
+          ${panel('ルークリ完成車', it => it.stage === 'ルークリ完成車', () => ({ stage: 'ルークリ完成車' }), { minH: 100 })}
+        </div>
+      </div>
+    </div>
+  </div>
+  ${dayBoxes(workDays(4, true))}`;
+}
+
+// 二本木BP：上に工程の列、下に塗装前（宮寺BPで作業中の車）・完成車・売上、曜日別の入庫・出庫
+function layoutNihon(){
+  const F = '二本木BP';
+  const TOP = [['作業待ち', ['見積り待ち','作業待ち','塗装待ち','鈑金']], ['下地'], ['塗装'], ['磨き'], ['組付'], ['減衰テスト待ち'], ['部品待ち'], ['ルークリ中']];
+  return `<div class="wb flex">${TOP.map(([s, also], i) => column(s, it => (also || [s]).indexOf(it.stage) >= 0 && inNihon(it), () => ({ stage: s, factory: F }),
+      { badge: true, lanes: s === '下地', cls: i === 0 || i === 3 ? 'b3' : '', style: s === '下地' ? 'flex:0 0 492px' : 'flex:1 1 0;min-width:0' })).join('')}</div>
+    <div class="flex gap" style="align-items:stretch">
+      ${panel('塗装前（宮寺BPで作業中）', it => !isDone(it) && inMiya(it), () => ({ factory: '宮寺BP' }), { left: true, style: 'width:792px;flex:0 0 792px' })}
+      <div class="stack" style="width:520px;flex:0 0 520px">
+        ${panel('完成車', it => it.stage === '完成車', () => ({ stage: '完成車' }), { minH: 100 })}
+        ${panel('ルークリ済完成車', it => it.stage === 'ルークリ完成車', () => ({ stage: 'ルークリ完成車' }), { minH: 100 })}
+      </div>
+      <div class="flex gap grow">${salesPanels(F)}</div>
+    </div>
+    ${dayBoxes(workDays(6, true))}`;
+}
+
+function render(){
+  if (!data) return;
+  const t = parse(data.today);
+  $('hTitle').textContent = (factory || '共有') + '　工程ボード（ホワイトボード版）';
+  $('hDate').textContent = `${t.getMonth()+1}月${t.getDate()}日（${WD[t.getDay()]}）`;
+  $('tabs').innerHTML = TABS.map(([f, label]) => `<button data-f="${esc(f)}" class="${f===factory?'on':''}">${label}</button>`).join('');
+  // 直前の更新（どの画面・スプレッドシートからでも）
+  const lastIt = data.items.slice().sort((a, b) => (b.updated||0) - (a.updated||0))[0];
+  if (lastIt && lastIt.updated){
+    const u = new Date(lastIt.updated);
+    $('last').textContent = `${String(u.getHours()).padStart(2,'0')}:${String(u.getMinutes()).padStart(2,'0')}　${lastIt.no} ${lastIt.car} → ${lastIt.stage}${lastIt.staff ? '（' + surname(lastIt.staff) + '）' : ''}${lastIt.by ? '　' + lastIt.by : ''}`;
+  }
+  // ヤナセ横浜の納車（今日・次の稼働日）
+  $('deliv').innerHTML = [t, nextWorkday(t,1)].map((d, i) => {
+    const key = ymd(d), q = (data.settings.quota || {})[d.getDay()] || 0;
+    const l = data.items.filter(it => it.due === key && isY(it)), done = l.filter(isDone).length;
+    let cls = '';
+    if (!q && !l.length) cls = 'none';
+    else if (l.length - done > 0 && i === 0) cls = 'bad';
+    else if (q && l.length !== q) cls = 'warn';
+    return `<div class="dv ${cls}"><div class="d">${i?'次':'今日'} ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ヤナセ横浜 出庫</div>
+      <div class="n">${l.length}台<small>完成${done}・作業中${l.length-done}</small></div></div>`;
+  }).join('');
+  $('fit').textContent = fitMode === 'all' ? '横幅に合わせる' : '全体を表示';
+  ZONES = {}; zoneSeq = 0;
+  $('board').innerHTML = factory === '宮寺BP' ? layoutMiya() : factory === '二本木BP' ? layoutNihon() : layoutShared();
+  fit();
+}
+
+// ===== 画面の大きさに合わせる（ボードは横2440pxで描いて縮める） =====
+function fit(){
+  const cv = $('cv'), W = window.innerWidth, H = window.innerHeight;
+  const h = cv.offsetHeight;
+  scale = fitMode === 'all' ? Math.min(W / CANVAS_W, H / h) : W / CANVAS_W;
+  cv.style.transform = `scale(${scale})`;
+  $('sizer').style.width = Math.floor(CANVAS_W * scale) + 'px';
+  $('sizer').style.height = Math.ceil(h * scale) + 'px';
+}
+window.addEventListener('resize', fit);
+$('fit').addEventListener('click', () => { fitMode = fitMode === 'all' ? 'w' : 'all'; store.set('fit', fitMode); render(); });
+
+// ===== 読み込み =====
+async function load(){
+  if (busy) return;
+  try {
+    data = await call('boardLoad', store.get('pin'));
+    lastOk = Date.now(); $('hint').className = 'hint';
+    render();
+  } catch (e) {
+    $('hint').className = 'hint err'; $('sync').textContent = '通信できません: ' + (e.message || e);
+    if (/PIN/.test(e.message || e)) { store.set('pin',''); showPin(); }
+  }
+}
+setInterval(() => {
+  if (lastOk && $('hint').className === 'hint') { const s = Math.round((Date.now()-lastOk)/1000);
+    $('sync').textContent = '指で札を動かす → 工程が変わる・タップで編集　' + (s < 5 ? '（最新）' : `（${s}秒前に同期）`); }
+}, 1000);
+setInterval(load, POLL_MS);
+
+// ===== 保存 =====
+async function save(key, patch){
+  const it = data.items.find(x => x.key === key);
+  const before = Object.assign({}, it);
+  Object.assign(it, patch); it.updated = Date.now(); it.by = store.get('name') || 'モニター';
+  if (patch.stage && patch.stage !== before.stage) it.since = Date.now();
+  if (patch.stage === '出庫済み') data.items = data.items.filter(x => x.key !== key);
+  render();
+  try { await call('boardSave', store.get('pin'), key, patch, store.get('name') || 'モニター'); }
+  catch (e) { Object.assign(it, before); render(); toast('保存できませんでした: ' + (e.message || e)); }
+}
+
+// ===== 指で札を動かす =====
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  const c = e.target.closest('.tk'); if (!c || busy) return;
+  drag = { el: c, key: c.dataset.key, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
+  c.setPointerCapture && c.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) < 12) return;
+  if (!drag.moved) {
+    drag.moved = true; busy = true;
+    const r = drag.el.getBoundingClientRect();
+    drag.ghost = drag.el.cloneNode(true); drag.ghost.classList.add('ghost');
+    drag.ghost.style.width = (r.width / scale) + 'px';
+    drag.ghost.style.transform = `scale(${scale}) rotate(2deg)`;
+    drag.offX = drag.x - r.left; drag.offY = drag.y - r.top;
+    document.body.appendChild(drag.ghost); drag.el.classList.add('dragging');
+  }
+  drag.ghost.style.left = (e.clientX - drag.offX) + 'px'; drag.ghost.style.top = (e.clientY - drag.offY) + 'px';
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const z = under && under.closest('.z');
+  if (drag.over && drag.over !== z) drag.over.classList.remove('over');
+  if (z) z.classList.add('over');
+  drag.over = z;
+  // 端に近づいたら縦スクロール
+  const vp = $('vp'), H = window.innerHeight;
+  if (e.clientY > H - 70) vp.scrollTop += 20; else if (e.clientY < 70) vp.scrollTop -= 20;
+});
+function endDrag(){
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.moved) { openEdit(d.key); return; }
+  d.ghost.remove(); d.el.classList.remove('dragging'); busy = false;
+  if (d.over) { d.over.classList.remove('over');
+    const z = ZONES[d.over.dataset.zone], it = data.items.find(x => x.key === d.key);
+    if (it && z) {
+      const patch = z.patch(it), diff = {};
+      Object.keys(patch).forEach(k => { if ((it[k] || '') !== patch[k]) diff[k] = patch[k]; });
+      if (Object.keys(diff).length) { save(d.key, diff); toast(`${it.no} を「${z.title}」へ`); }
+    }
+  }
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', () => { if (drag && drag.ghost) { drag.ghost.remove(); drag.el.classList.remove('dragging'); } if (drag && drag.over) drag.over.classList.remove('over'); drag = null; busy = false; });
+
+// ===== 工場タブ =====
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; factory = b.dataset.f; store.set('factory', factory); $('vp').scrollTop = 0; render(); });
+
+// ===== 札の編集 =====
+function openEdit(key){
+  const it = data.items.find(x => x.key === key); if (!it) return;
+  busy = true;
+  const f = it.factory || it.factories[0] || data.factories[0];
+  const staffList = Array.from(new Set([].concat(data.settings.staff[f] || [], it.staff ? [it.staff] : [])));
+  const sg = signal(it), curColor = it.color || defaultColor(it);
+  const colorRow = isY(it) ? '' : `<div class="row"><label>付箋の色</label><div class="chips col" data-k="color">${(data.colors || Object.keys(STICKY)).map(c =>
+    `<button data-v="${esc(c)}" class="${c===curColor?'on':''}" style="background:${STICKY[c]}">${esc(c)}</button>`).join('')}</div></div>`;
+  $('box').innerHTML = `<h3>${esc(it.no)}　${esc(it.car)}</h3>
+    <div class="sub">${esc([it.plate, it.customer, it.inDate ? '入庫 ' + md(it.inDate) : '', it.photoStage ? '最新の写真 ' + it.photoStage : '', sg.why].filter(Boolean).join(' ・ '))}</div>
+    <div class="row"><label>工程</label><div class="chips" data-k="stage">${data.stages.map(s => `<button data-v="${esc(s)}" class="${s===it.stage?'on':''}">${esc(s)}</button>`).join('')}</div></div>
+    <div class="row"><label>今いる工場</label><div class="chips" data-k="factory">${data.factories.map(s => `<button data-v="${esc(s)}" class="${s===it.factory?'on':''}">${esc(s)}</button>`).join('')}</div></div>
+    <div class="row"><label>担当</label><div class="chips" data-k="staff"><button data-v="" class="${!it.staff?'on':''}">なし</button>${staffList.map(s => `<button data-v="${esc(s)}" class="${s===it.staff?'on':''}">${esc(s)}</button>`).join('')}</div></div>
+    ${colorRow}
+    <div class="row"><label>納車予定日</label><input type="date" id="e-due" value="${esc(it.due)}"></div>
+    <div class="row"><label>作業内容・メモ</label><textarea id="e-memo" placeholder="例：フロントバンパー補修&#10;右サイドステップ">${esc(it.memo)}</textarea></div>
+    <div class="acts"><button class="btn-cancel" id="e-cancel">閉じる</button><button class="btn-save" id="e-save">保存</button></div>`;
+  const val = {};
+  $('box').querySelectorAll('.chips').forEach(g => g.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    g.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); val[g.dataset.k] = b.dataset.v;
+  }));
+  $('e-cancel').onclick = closeEdit;
+  $('e-save').onclick = () => {
+    const patch = {};
+    Object.keys(val).forEach(k => { if (val[k] !== (it[k] || '')) patch[k] = val[k]; });
+    if ($('e-due').value !== it.due) patch.due = $('e-due').value;
+    if ($('e-memo').value !== it.memo) patch.memo = $('e-memo').value;
+    closeEdit();
+    if (Object.keys(patch).length) save(key, patch);
+  };
+  $('sheet').classList.add('on');
+}
+function closeEdit(){ $('sheet').classList.remove('on'); busy = false; }
+$('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeEdit(); });
+
+// ===== PIN =====
+function showPin(){ $('pin').classList.add('on'); $('nameInput').value = store.get('name'); setTimeout(() => $('pinInput').focus(), 50); }
+$('pinForm').addEventListener('submit', e => { e.preventDefault(); store.set('pin', $('pinInput').value.trim()); store.set('name', $('nameInput').value.trim()); $('pin').classList.remove('on'); load(); });
+
+// ===== 見本データ（BPアプリにつながっていないとき＝プレビュー用） =====
+const Mock = (function(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const DN = ['完成車','ルークリ完成車'];
+  const add = n => { const d = new Date(today); d.setDate(d.getDate()+n); if (d.getDay() === 0) d.setDate(d.getDate()+1); return ymd(d); };
+  const h = n => Date.now() - n*3600000;
+  const S = ['見積り待ち','部品待ち','作業待ち','鈑金','組付','塗装待ち','下地','塗装','磨き','減衰テスト待ち','ルークリ中','完成車','ルークリ完成車','出庫済み'];
+  const BODY = ['岡部 直樹','浅見 延利','齊藤 健太郎','横田 憲'], PAINT = ['隄 正行','森 智久','畠中 正弘','藤田 民夫','神嵜 龍之亮','下田 雄大'];
+  const NIHON = ['山口 秀昭','井上 雄介','隄 克已','トアン','トゥアン','フィ'];
+  const full = s => BODY.concat(PAINT, NIHON).find(n => surname(n) === s) || s;
+  const items = [];
+  // 付箋：番号, お客様, 車名, 入庫(日前), 納期(日後 or ''), 作業, 色, 工程, 担当, 工場, 止まり(時間)
+  const T = (no, cust, car, inAgo, due, memo, color, stage, staff, f, hrs) => items.push({ key:'2026_'+no, no, car, plate:'', customer:cust, stage, staff: full(staff), factory: f||'宮寺BP',
+    due: due === '' ? '' : add(DN.indexOf(stage) >= 0 ? due : due + 2), memo, since: h(hrs||10), inDate: add(-inAgo), color, amounts:{}, factories:[f||'宮寺BP'], photoStage:'', updated: h(hrs||10), by:'見本' });
+  // 伝票：番号, 入庫(日前), 車名, ナンバー, 作業, 金額, 納期, 工程, 担当, 工場, 止まり(時間)
+  const Y = (no, inAgo, car, plate, memo, amt, due, stage, staff, f, hrs) => items.push({ key:'2026_Y'+no, no:'Y'+no, car, plate:'横浜 300 あ ' + plate, customer:'Y横浜', stage, staff: full(staff), factory: f||'宮寺BP',
+    due: due === '' ? '' : add(DN.indexOf(stage) >= 0 ? due : due + 2), memo, since: h(hrs||10), inDate: add(-inAgo), color:'', amounts: amt ? { [f||'宮寺BP']: amt } : {}, factories: f === '二本木BP' ? ['宮寺BP','二本木BP'] : ['宮寺BP'], photoStage:'', updated: h(hrs||10), by:'見本' });
+  T('10-24','T荻窪BPC','ピクシスメガ',24,4,'左スライドドア×\n左クォーターBP','ピンク','鈑金','岡部');
+  T('10-53','ヤナセ昭島','CLA45',13,3,'フロントバンパー×\n左ヘッドライト×','緑','鈑金','岡部');
+  T('10-46','T立野BPC','ハイエース',18,5,'フロントバンパー×\n右フロントドアBP','ピンク','鈑金','浅見',null,60);
+  Y('10-115',11,'A200d','1101','左リアフェンダー補修\nウォッシャーカバー 要確認',41200,'','鈑金','浅見');
+  T('10-31','神奈中ヤナセ','G500',23,'','組付け・仕上げ','緑','組付','浅見');
+  T('10-65','牧','セレナ',7,1,'フロントバンパー\n塗装・組付け','オレンジ','組付','齊藤',null,30);
+  Y('10-50',23,'C220d','1008','右サイドステップ塗装\nリヤバンパー補修',112800,3,'組付','齊藤');
+  Y('10-95',13,'GLC220d','1356','左フロント・左リヤドア\nアルミ4本','','','鈑金','横田');
+  Y('10-117',11,'GLC63 S','8060','左サイドステップ補修',6800,'','組付','横田');
+  T('10-61','肥沼','アウディRS5',9,4,'ルーフBP','オレンジ','組付','横田');
+  T('10-58','神奈中ヤナセ','GLC',11,2,'フロントバンパー\nフード・左フォグ','緑','部品待ち','');
+  T('10-55','T秋津BPC','ノア',7,4,'左スライドドア×\n左クォーター×','ピンク','部品待ち','');
+  T('10-33','T府中BPC','ライズ',17,6,'フロントバンパー\nフード×','オレンジ','作業待ち','');
+  T('10-25','田島','フォレスター',24,7,'左フロントドア×\nリヤバンパー×','緑','作業待ち','');
+  T('10-70','秋元','ロックスター',0,'','見積り','黄','見積り待ち','');
+  [['10-129',9,'GLC43','0021','右フロントフェンダー補修\nフロントモール',36000],['10-118',10,'G63','0036','リアバンパー塗装\nアルミ3本 後中P 要確認',206400],
+   ['10-112',11,'C180T','0666','フロントバンパー補修\n右サイドステップ',121600],['10-130',9,'E300T','4365','リアバンパー補修',72000],
+   ['10-125',10,'コマンダー','0516','左リアドア塗装',70000],['10-132',9,'S400d','1248','フロントバンパー右側ズレBP',117600]].forEach((a, i) => Y(a[0],a[1],a[2],a[3],a[4],a[5], i < 2 ? 2 : '', '塗装待ち','', null, i === 1 ? 70 : 20));
+  T('10-56','キャルズモータース','カリカ',13,5,'ミント\n全塗装','緑','下地','隄');
+  T('10-47','小林','プロボックス',29,6,'リヤバンパー×\nバックドアBP','オレンジ','下地','隄');
+  T('10-54','ヤナセ昭島','C200',12,1,'左クォーターBP','緑','下地','隄',null,52);
+  Y('10-66',16,'E200','1012','前後バンパー補修',98000,2,'塗装','隄',null,2);
+  T('09-065','バンザイ','インプレッサ',62,'','ルーフ・右ピラー\nボディペイント','黄','下地','森');
+  T('10-48','佐保田','ノートオーラ',14,4,'フード×\n左ドアBP','オレンジ','下地','森');
+  T('10-63','ヤナセ昭島','GLC',9,'','左リヤドアBP','緑','下地','森');
+  T('09-021','T秋津BPC','ランクル',56,'','フード・ルーフ\n左右ミラー','オレンジ','下地','畠中');
+  T('09-142','ヤナセ横浜','GLB200',34,'','左ドア 2箇所','水色','下地','藤田');
+  Y('10-107',12,'A180','1015','右サイドステップ前後補修\nバックドア',44400,5,'下地','藤田');
+  Y('10-47',24,'CLS220d','0326','フロント・リヤバンパー補修',88000,3,'塗装','藤田',null,3);
+  Y('10-113',11,'GLA220','0217','右フロントドア補修\n左リアドア補修',63600,'','下地','神嵜');
+  Y('10-97',13,'C220d','1009','フロントバンパー補修',106800,4,'下地','神嵜');
+  Y('10-78',17,'E350e','0618','フロント・リヤバンパー補修',132000,3,'塗装','神嵜',null,4);
+  T('09-132','ヤナセ横浜','G450',35,'','タイヤカバー\nバックドア','水色','下地','下田');
+  Y('10-105',12,'E220d','4312','右リアフェンダー補修\nリアバンパー塗装',128000,5,'下地','下田');
+  Y('10-116',11,'E200','7010','フロントバンパー左寄り',19600,2,'磨き','下田');
+  Y('10-103',12,'GLC220d','7119','フロントバンパー補修\nアルミ2本',138000,1,'完成車','');
+  Y('10-89',16,'C220d','3748','フロントバンパー補修\nレーダーセンサー',173200,0,'完成車','');
+  T('10-41','T昭和の森','プリウス',20,0,'リヤバンパー×','ピンク','完成車','');
+  T('10-38','島崎','ミライ',22,2,'右フロントドアBP','オレンジ','ルークリ中','');
+  [['10-111',11,'C220d','0011','フロントバンパー補修\nアルミ3本'],['10-124',10,'GLC220d','1228','フロントバンパー塗装'],['10-127',9,'C200T','1123','右サイドステップ補修'],
+   ['10-91',16,'GLC43','1177','フロント・リヤバンパー'],['10-123',10,'C200','2211','リアバンパー塗装'],['10-121',10,'C200','0007','リアバンパー塗装'],
+   ['10-119',10,'C200T','2000','フロントバンパー補修'],['10-131',9,'C200','1000','フロントバンパー補修'],['10-133',9,'C180','0007','フロントバンパー補修\nアルミ3本'],
+   ['10-102',12,'B200d','0077','リアバンパー補修']].forEach((a, i) => Y(a[0],a[1],a[2],a[3],a[4],0, i % 3 === 0 ? 6 + i : '', '作業待ち','', null, i === 3 ? 80 : 20));
+  // 二本木BPにある車（ヤナセ横浜の中古車）
+  Y('10-110',11,'GT63 S','0063','右サイドステップ補修',52000,6,'作業待ち','','二本木BP',30);
+  Y('10-74',19,'C180T','1207','フロント・リヤバンパー塗装',96000,3,'下地','トアン','二本木BP',20);
+  Y('10-90',16,'C220d','2278','フロントバンパー補修\nリヤバンパー塗装',88000,4,'下地','フィ','二本木BP',10);
+  Y('10-114',11,'C200','1122','フロントバンパー左寄り補修',42000,1,'塗装','井上','二本木BP',70);
+  Y('10-122',10,'GLC220','1688','フロントバンパー補修',38000,2,'磨き','山口','二本木BP',5);
+  Y('10-100',13,'S580','1021','フロントバンパー補修',61000,2,'組付','','二本木BP',2);
+  Y('10-109',12,'E220d','0550','フロントバンパー補修',45000,1,'減衰テスト待ち','','二本木BP',6);
+  Y('10-104',12,'E200','1012','フロントバンパー補修',90800,'','ルークリ中','','二本木BP',6);
+  Y('10-106',12,'S580','5800','リアバンパー補修',68000,0,'完成車','','二本木BP',3);
+  Y('10-36',25,'GLB200d','0315','リヤバンパー補修\nアルミ1本',141200,1,'ルークリ完成車','','二本木BP',8);
+  T('10-44','ヤナセ昭島','A180',12,5,'左フロントフェンダー','緑','下地','隄 克已','二本木BP',8);
+  items.find(x => x.no === '10-46').updated = Date.now() - 120000; items.find(x => x.no === '10-46').by = '宮寺 工場前';
+  const sales = {
+    '宮寺BP': { total: 13685139, month: today.getMonth()+1, people: [['岡部 直樹',1751536],['隄 正行',1420696],['森 智久',1389757],['浅見 延利',1164624],['畠中 正弘',1024702],['藤田 民夫',923850],['齊藤 健太郎',861926],['神嵜 龍之亮',791169],['横田 憲',663913],['下田 雄大',626875]].map(p => ({ name:p[0], amt:p[1] })) },
+    '二本木BP': { total: 8412300, month: today.getMonth()+1, people: [['山口 秀昭',1912000],['井上 雄介',1688400],['隄 克已',1502300],['トアン',1188000],['トゥアン',1094600],['フィ',1027000]].map(p => ({ name:p[0], amt:p[1] })) },
+  };
+  return {
+    boardLoad(){ return Promise.resolve({ now: Date.now(), today: ymd(today), stages:S, factories:['宮寺BP','二本木BP'],
+      settings:{ quota:{2:8,3:8,4:8,5:8,6:4}, staff:{'宮寺BP':BODY.concat(PAINT),'二本木BP':NIHON}, groups:{ miyaBody:BODY, miyaPaint:PAINT, nihon:NIHON }, holidays:['2026-11-03'], paintTarget:810000 },
+      items: JSON.parse(JSON.stringify(items)), sales: sales, colors: Object.keys(STICKY) }); },
+    boardSave(pin, key, patch, by){ const it = items.find(x => x.key === key); Object.assign(it, patch); it.updated = Date.now(); it.by = by; if (patch.stage) it.since = Date.now(); return Promise.resolve({ ok:true }); },
+  };
+})();
+
+// ===== 起動 =====
+if (LIVE && !store.get('pin')) showPin(); else load();
+</script>
+</body>
+</html>

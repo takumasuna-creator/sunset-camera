@@ -2,6 +2,10 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<script>
+// 工程ボード（モニター用）は board.html。前に案内した …/?view=board&f=宮寺BP でも開けるようにする
+if (/[?&]view=board(&|$)/.test(location.search)) location.replace('board.html' + location.search);
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -418,7 +422,7 @@ const HINT = {
   '損傷': '傷・へこみに近づいて。大きさがわかる1枚も',
 };
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '38';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '39';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
