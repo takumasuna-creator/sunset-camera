@@ -179,7 +179,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v38</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v39</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -1043,13 +1043,14 @@ $('#stages').onclick = e => { const b = e.target.closest('.stage'); if (!b) retu
 // ---------- シャッター音（TAKUMAさんが録音した音を埋め込み。マナーモード中は鳴りません） ----------
 const SHUTTER_MP3 = 'data:audio/mpeg;base64,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QhNFoUh1ZzBUVIJAmCkcFRn1uZuVAItqIgAAAAM0R9kxagM4jRtpQ5pDqLdAfHbdeTVOu1YrqPlpHK87RSQkQNn5ntrW/RdM7OzM57KEJRjfjo/o2uQj6Vh2ExmSzJ9CAkiuQjk0U1PWafbMZZdghWqWsBC7///3sR5lKMoYysBB0RGQaBlyGf5IAKZYyAAkACx0TgDjILRotVV3YODDs1Vk7wy2JO9rrYW8cami7ywzNxBqws0clssuauTV/z8/PqHTFA+arFZCxbHnSVj/+3LEXIAOmRlVx7BVQcuiqTmFiqDaNo+n3PDEhSaO12VCHQzGcWpbBngi1Kv/+rVzPMpUqJdAzmHBIRhKFT1pH+ZTWgBXaABQKgYqoiejcXpgWG36lr9ZO86ENO9Gn/gWtKoZZS3jrPspH5etsBAHaMAgPAnMnPX7T/++ThWGDmYBCjkuUuZJSATjY5MMDDjSKwVE0AjZBSKQTvY/yWLFKxd/06q3WodQRYREQBIOc3M6mM7HLKKjyP+RaMAUkAAAQyczKegNGNMov1jT2KXVZypuktZd+4/3WlPcpi4sOJUo4jgTx0OrKpTY71p+L42+uoFli6sOQ9jym5BqHtCCcMBUAsH1z2UcKxwUcslHZRxNWNFaJpv/r5r/WmYWZlppN5NCgFCbiQlEQlDQcYHeerdiX/pqAAR0yv/7cMR7AA8RMzdsmLVB4yGkYZwg+Ac4CLEQho5elc0Pv7XjNSeq4dxyuW5bEonB0PQzJIo4zKWxO3CItZxuoVWZcyNM+RphIn/USQkDIJqp/3+U7XlGvlO25RpIKgJAUEhpn1pCQFCrywkApAGSMGST4r/QDIgCoCJBVseRCYxDP+tMQU1FMy4xMDCqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr/+3LElAPOIMb4TATWgAAANIAAAASqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqg==';
 const SHUTTER_VOL = 0.45;   // 音量（1=録音そのまま。2026-11-07 本人希望で小さめ）
-let actx, shutterBuf, shutterLoading, shutterEl;
+let actx, shutterBuf, shutterLoading;
+// どの撮影でも同じ音・同じ大きさで鳴らすため、再生は Web Audio の1経路だけにする（v39）
 function loadShutter(){
   try {
     // iPhoneのマナーモード（消音スイッチ）中でも鳴らす（iOS 17以降。純正カメラと同じくシャッター音は消さない）
     try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state !== 'running') actx.resume().catch(() => {});   // 'suspended' に加え、他アプリから戻った時の 'interrupted' も起こす
+    if (actx.state !== 'running') { const r = actx.resume(); if (r && r.catch) r.catch(() => {}); }   // 'suspended'・他アプリから戻った時の 'interrupted' も起こす
     if (shutterBuf || shutterLoading) return;
     shutterLoading = true;
     const bin = atob(SHUTTER_MP3.split(',')[1]), u = new Uint8Array(bin.length);
@@ -1057,23 +1058,31 @@ function loadShutter(){
     actx.decodeAudioData(u.buffer, b => { shutterBuf = b; }, () => { shutterLoading = false; });
   } catch (e) {}
 }
+function playBuf(buf, vol){
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const g = actx.createGain(); g.gain.value = vol;
+  src.connect(g).connect(actx.destination); src.start();
+}
 function shutterSound(){
   try {
-    loadShutter();
-    if (shutterBuf && actx.state === 'running') {
-      const src = actx.createBufferSource(); src.buffer = shutterBuf;
-      const g = actx.createGain(); g.gain.value = SHUTTER_VOL;
-      src.connect(g).connect(actx.destination); src.start();
-      return;
-    }
-    // 準備がまだ（初回の1枚目など）の時は普通の音声再生で鳴らす
-    shutterEl = shutterEl || new Audio(SHUTTER_MP3);
-    shutterEl.volume = SHUTTER_VOL; shutterEl.currentTime = 0;
-    const pr = shutterEl.play(); if (pr && pr.catch) pr.catch(() => {});
+    loadShutter();   // 押した操作の中で音を起こす（止まっていても、ここで再開して鳴る）
+    if (shutterBuf) return playBuf(shutterBuf, SHUTTER_VOL);
+    // まだ読み込み中（アプリを開いてすぐ）の時は、読み終わり次第すぐ鳴らす
+    const t0 = Date.now(), wait = setInterval(() => {
+      if (shutterBuf) { clearInterval(wait); if (Date.now() - t0 < 400) playBuf(shutterBuf, SHUTTER_VOL); }
+      else if (Date.now() - t0 > 400) clearInterval(wait);
+    }, 20);
   } catch (e) {}
 }
+// iPhoneは「画面に触った時」しか音を出せる状態にできないので、最初のタッチで無音を1回鳴らして準備しておく
+['touchend', 'pointerdown', 'click'].forEach(ev => document.addEventListener(ev, function unlock(){
+  loadShutter();
+  try { if (actx) playBuf(actx.createBuffer(1, 1, 22050), 0); } catch (e) {}
+  if (actx && actx.state === 'running') ['touchend', 'pointerdown', 'click'].forEach(x => document.removeEventListener(x, unlock, true));
+}, true));
 $('#shutter').addEventListener('pointerdown', loadShutter);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && actx && actx.state !== 'running') actx.resume().catch(() => {}); });   // 押した瞬間に準備（初回の遅れを減らす）
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && actx && actx.state !== 'running') { const r = actx.resume(); if (r && r.catch) r.catch(() => {}); } });
+loadShutter();   // 開いた時に音を読み込んでおく
 
 // ---------- 車検証チェック（v37）：QRコードが読めなければ撮り直しを出す ----------
 // 車検証のQRコードには登録番号・車台番号・型式・型式指定などが入っている。読めれば一等書記官への登録に使える
