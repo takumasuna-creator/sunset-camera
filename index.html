@@ -78,7 +78,9 @@ label.f textarea{min-height:64px;resize:vertical}
 .stage[aria-pressed="true"]{background:var(--red);border-color:var(--red)}
 .stage i{font-style:normal;font-weight:400;opacity:.8;margin-left:3px}
 .view{position:relative;min-height:0;overflow:hidden}
-.next{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(0,0,0,.6);padding:6px 14px;border-radius:999px;font-size:15px;font-weight:800}
+.next{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(0,0,0,.6);padding:6px 14px;border-radius:999px;font-size:15px;font-weight:800;text-align:center;width:max-content;max-width:88vw}
+.next small{display:block;font-size:12px;font-weight:600;line-height:1.4;margin-top:2px;opacity:.95}
+.next:has(small){border-radius:14px}
 .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 .flash.on{opacity:.7;transition:none}
 .cam-err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;font-size:15px;line-height:1.6}
@@ -177,7 +179,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v37</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v38</small>
   <button class="me" id="me">担当者</button>
 </header>
 
@@ -406,8 +408,17 @@ const ANGLES = ['正面', '右前', '右側', '右後', '後ろ', '左後', '左
 // 受付で必ず撮る3枚（保存は「入庫」の写真として送る）
 const MUST = ['車検証', 'コーションラベル', 'メーター'];
 const CAM_STAGES = ['受付'].concat(STAGES);
+// 撮る物ごとの撮り方の案内（v38）
+const HINT = {
+  '車検証': '電子車検証のカード（古い車は紙の車検証）を平らに置き、右側のQRコードまで全部入れて真上から',
+  'コーションラベル': '運転席ドアを開けた柱のラベル。型式・車台番号の文字が読めるように近づいて',
+  'メーター': 'エンジンをかけて、走行距離の数字が読めるように',
+  '書類': '記録事項の紙はA4全体が入るように。依頼書なども撮れます',
+  '正面': 'ナンバーが読めるように、車全体を入れて', '後ろ': 'ナンバーが読めるように、車全体を入れて',
+  '損傷': '傷・へこみに近づいて。大きさがわかる1枚も',
+};
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '37';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '38';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -1019,8 +1030,9 @@ function renderCam(){
   const n = st => here.filter(s => s.stage === st).length;
   $('#stages').innerHTML = CAM_STAGES.map(s => `<button class="stage" data-s="${s}" aria-pressed="${s === stage}">${s}<i>${n(s)}</i></button>`).join('');
   const k = held().filter(s => s.stage === stage).length;
-  $('#next').textContent = stage === '受付' && k < MUST.length || stage === '入庫' && k < 8 ? `次: ${labelFor(stage, k)}` : '';
-  $('#next').hidden = !$('#next').textContent;
+  const nx = stage === '受付' || stage === '入庫' && k < 8 ? labelFor(stage, k) : '';
+  $('#next').innerHTML = nx ? `次: ${nx}` + (HINT[nx] ? `<small>${HINT[nx]}</small>` : '') : '';
+  $('#next').hidden = !nx;
   $('#thumbs').innerHTML = here.slice(-4).reverse().map(s => `<img src="${s.thumb}" data-k="${shots.indexOf(s)}" class="${s.state === 'hold' ? 'hold' : s.state === 'done' ? 'ok' : s.state === 'err' ? 'ng' : ''}" alt="">`).join('');
   const h = held().length;   // 撮った写真があれば「写真をアップ」ボタンにする（終了を押さなくても確認・アップ画面へ行ける）
   $('#status').className = 'status' + (h ? ' up' : '');
@@ -1091,7 +1103,7 @@ async function checkShaken(shot){
   try {
     codes = await Promise.race([readQR(shot.canvas), new Promise((_, ng) => setTimeout(() => ng(new Error('timeout')), 6000))]);
   } catch (e) { return; }   // 読み取りの準備ができない・遅い時は止めない（そのまま保存）
-  if (codes.length) { shot.qr = codes; shakenMiss = 0; toast(`車検証OK（QRコード${codes.length}個）。次はコーションラベル`); return; }
+  if (codes.length) { shot.qr = codes; shakenMiss = 0; toast(`車検証OK（QRコード${codes.length}個）。次はコーションラベル：運転席ドアの柱`); return; }
   if (!shots.includes(shot) || shot.state !== 'hold') return;
   if (++shakenMiss >= 2) { shakenMiss = 0; toast('車検証のQRコードが読めないまま保存しました'); return; }   // 2回続けて読めない時は止めない（車検証が無い等）
   drop(shot); relabel(); stage = '受付'; renderCam();
@@ -1119,7 +1131,7 @@ $('#shutter').onclick = () => {
   const f = $('#flash'); f.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on')));
   if (navigator.vibrate) navigator.vibrate(30);
   // 受付の3枚を撮り終えたら、そのまま入庫の8方向へ進む
-  if (stage === '受付' && held().filter(x => x.stage === '受付').length === MUST.length) { stage = '入庫'; toast('車検証・コーションラベル・メーターOK。続けて車の周りを撮ってください'); }
+  if (stage === '受付' && held().filter(x => x.stage === '受付').length === MUST.length) { stage = '入庫'; toast('受付3枚OK。続けて車の周りを撮ってください（記録事項の紙があれば、上の「受付」を押して追加で撮れます）'); }
   renderCam();
 };
 
