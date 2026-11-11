@@ -222,6 +222,7 @@ button.status.up:active{transform:scale(.95)}
     <div id="r-general" hidden style="display:grid;gap:10px">
       <label class="f"><span class="req">入庫先（お客様名・業者名）</span></label>
       <div class="chips" id="r-custs"></div>
+      <div class="err" id="r-boot" style="margin:0"></div>
       <input id="r-customer" placeholder="ほかは自由に記入（例: 山田 太郎／東京海上）" style="font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px">
       <div class="row2">
         <label class="f"><span>入庫先の区分</span><select id="r-category"></select></label>
@@ -444,7 +445,7 @@ const HINT = {
   '損傷': '傷・へこみに近づいて。大きさがわかる1枚も',
 };
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '40';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '41';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -553,19 +554,45 @@ const post = async body => {
   if (!r.ok) throw new Error(r.error);
   return r.data;
 };
-let booted = false, kind = '';
-async function loadBoot(){
-  if (booted) return;
-  try {
-    const r = await (await fetch(API + '?api=boot&pin=' + encodeURIComponent(store.get('pin')))).json();
-    if (!r.ok) throw new Error(r.error);
-    $('#r-category').innerHTML = '<option value="">選ぶ</option>' + r.data.categories.map(s => `<option>${esc(s)}</option>`).join('');
-    $('#r-bill').innerHTML = '<option value="">（あとで）</option>' + r.data.billTo.map(s => `<option>${esc(s)}</option>`).join('');
-    if (!$('#r-date').value) $('#r-date').value = r.data.today;
-    custs = r.data.customers || [];
+let booted = false, kind = '', booting = null;
+// 選択欄は読み込みを待たずに開けるよう、売上集計表の候補を最初から入れておく（読み込めたら最新に差し替え）
+const BOOT_DEFAULT = {
+  categories: ['1　あいおい','2　東京海上','3　ヤナセDRP','4　トヨタモビリティ','5　保険代理店','6　モーター屋','7　既存客','8　その他','9　見積のみ','12  ｲﾝﾀｰﾈｯﾄ','12  ﾒｰﾙ'],
+  billTo: ['Y横浜','Y昭島','Y所沢','DRP','神奈中Y','トヨタ','カローラ','ネッツ','一般','保険','レンタカー','社内','宮園オート','村野自動車','TDR','アルパイン','ノルド','東和モータース','モータースいとう','ﾊﾞﾝｻﾞｲ','ガリバー','マセラティ','その他'],
+  customers: [],
+};
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+function fillBoot(d){
+  const keep = (sel, html) => { const v = $(sel).value; $(sel).innerHTML = html; if (v && [...$(sel).options].some(o => o.value === v)) $(sel).value = v; };
+  if (d.categories && d.categories.length) keep('#r-category', '<option value="">選ぶ</option>' + d.categories.map(s => `<option>${esc(s)}</option>`).join(''));
+  if (d.billTo && d.billTo.length) keep('#r-bill', '<option value="">（あとで）</option>' + d.billTo.map(s => `<option>${esc(s)}</option>`).join(''));
+  if (!$('#r-date').value) $('#r-date').value = d.today || today();
+  if (d.customers && d.customers.length) {
+    custs = d.customers;
     $('#r-custs').innerHTML = custs.map((c, i) => `<button type="button" class="sub" data-c="${i}" aria-pressed="false">${esc(c.name)}</button>`).join('');
-    booted = true;
-  } catch (err) { $('#r-err').textContent = '読み込めませんでした: ' + (err.message || err); }
+    markCust();
+  }
+}
+let bootCache = BOOT_DEFAULT;
+try { const c = JSON.parse(store.get('boot') || 'null'); if (c && c.categories) bootCache = Object.assign({}, BOOT_DEFAULT, c); } catch (e) {}
+function loadBoot(){
+  if (booted) return Promise.resolve();
+  if (booting) return booting;
+  if (!$('#r-category').options.length) fillBoot(bootCache);
+  $('#r-boot').textContent = '';
+  booting = (async () => {
+    try {
+      const r = await (await fetch(API + '?api=boot&pin=' + encodeURIComponent(store.get('pin')))).json();
+      if (!r.ok) throw new Error(r.error);
+      const d = { categories: r.data.categories, billTo: r.data.billTo, customers: r.data.customers || [] };
+      fillBoot(Object.assign({}, d, { today: r.data.today }));
+      store.set('boot', JSON.stringify(d));
+      booted = true;
+    } catch (err) {
+      $('#r-boot').textContent = '候補を最新にできませんでした（前回の候補で選べます）。入庫先のボタンを押すと読み直します: ' + (err.message || err);
+    } finally { booting = null; }
+  })();
+  return booting;
 }
 function setKind(k){
   document.querySelectorAll('.kind').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === k));
@@ -575,7 +602,7 @@ function setKind(k){
   $('#r-yshop').hidden = kind !== 'yShop';
   if (!$('#r-staff').value) $('#r-staff').value = store.get('me');
 }
-document.querySelector('.kinds').onclick = e => { const b = e.target.closest('.kind'); if (b) setKind(b.dataset.k); };
+document.querySelector('.kinds').onclick = e => { const b = e.target.closest('.kind'); if (b) { setKind(b.dataset.k); loadBoot(); } };
 // ヤナセ一般の入庫先: ボタンで選ぶか自由に記入。選んだ文字がそのまま売上集計表の入庫先（お客様）欄に入る
 function markShop(){ document.querySelectorAll('#r-shops .sub').forEach(b => b.setAttribute('aria-pressed', b.textContent === $('#r-shop').value.trim())); }
 $('#r-shops').onclick = e => { const b = e.target.closest('.sub'); if (!b) return; $('#r-shop').value = b.textContent; markShop(); };
