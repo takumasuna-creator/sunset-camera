@@ -187,7 +187,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v40</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v42</small>
   <button class="me" id="yb-open" type="button">💡要望</button>
   <button class="me" id="me">担当者</button>
 </header>
@@ -445,7 +445,7 @@ const HINT = {
   '損傷': '傷・へこみに近づいて。大きさがわかる1枚も',
 };
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '41';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '42';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -734,19 +734,48 @@ async function openCam(c, first){
   $('#cam').hidden = false; $('#cam-err').hidden = true;
   renderCam();
   try {
-    const hi = c.parts;   // 部品の紙は文字を読むので、カメラも高い解像度で開く
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: hi ? 3840 : 1920 }, height: { ideal: hi ? 2880 : 1440 } }, audio: false });
-    $('#video').srcObject = stream;
+    const hi = !!c.parts;   // 部品の紙は文字を読むので、カメラも高い解像度で開く
+    stream = await getCam(hi);
+    const v = $('#video');
+    if (v.srcObject !== stream) v.srcObject = stream;
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
   } catch (err) {
     $('#cam-err').hidden = false;
     $('#cam-err').textContent = /Android/i.test(navigator.userAgent)
       ? 'カメラを使えませんでした。アドレスバー左の鍵マーク → 権限 → カメラ を「許可」にして、もう一度開いてください。'
-      : 'カメラを使えませんでした。設定 → Safari → カメラ を「許可」にして、もう一度開いてください。';
+      : 'カメラを使えませんでした。設定 → アプリ → Safari → カメラ を「許可」にして、もう一度開いてください。';
   }
 }
-function closeCam(){
+// カメラは一度開いたら止めずに使い回す（iPhoneは開き直すたびに許可を聞いてくるため）
+// 使わないまま10分たったら電池のために止める
+const CAM_IDLE_MS = 10 * 60 * 1000;
+let camHi = false, camIdle = null;
+const camLive = () => stream && stream.getVideoTracks().some(t => t.readyState === 'live');
+function sizeOf(hi){ return { width: { ideal: hi ? 3840 : 1920 }, height: { ideal: hi ? 2880 : 1440 } }; }
+async function getCam(hi){
+  clearTimeout(camIdle); camIdle = null;
+  if (camLive()) {
+    if (hi !== camHi) {   // 解像度だけ変える（開き直さないので許可は出ない）
+      try { await stream.getVideoTracks()[0].applyConstraints(sizeOf(hi)); camHi = hi; } catch (e) {}
+    }
+    stream.getVideoTracks().forEach(t => { t.enabled = true; });
+    return stream;
+  }
+  stopCam();
+  const s = await navigator.mediaDevices.getUserMedia({ video: Object.assign({ facingMode: 'environment' }, sizeOf(hi)), audio: false });
+  camHi = hi;
+  return s;
+}
+function stopCam(){
+  clearTimeout(camIdle); camIdle = null;
   if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; $('#video').srcObject = null;
+  stream = null; const v = $('#video'); if (v) v.srcObject = null;
+}
+function closeCam(){
+  if (camLive()) {   // 止めずに一時停止だけ。次の車ですぐ撮れる
+    try { $('#video').pause(); } catch (e) {}
+    clearTimeout(camIdle); camIdle = setTimeout(stopCam, CAM_IDLE_MS);
+  } else stopCam();
   $('#cam').hidden = true; $('#gal').hidden = true; $('#gview').hidden = true; cur = null;
 }
 // 撮った写真はすぐには送らず、「終わる」で確認してからアップする
