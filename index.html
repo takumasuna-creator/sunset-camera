@@ -199,6 +199,17 @@ button.status.up:active{transform:scale(.95)}
 .bar-lb b{color:var(--fg)}
 .badge{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:1px 6px;background:#E7F4EC;color:var(--ok);margin-left:4px}
 .badge.due{background:#FBE7E8;color:var(--red-ink)}
+/* 同じナンバーの確認（v44） */
+.badge.dup{background:#FFF1C2;color:#7A5200}
+#s-dup form{max-width:420px;max-height:calc(100vh - 32px);overflow:auto}
+.dup-warn{background:#FFF1C2;color:#5C3D00;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:700;line-height:1.5}
+.dup-car{all:unset;cursor:pointer;display:grid;gap:3px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)}
+.dup-car b{font-size:17px;font-variant-numeric:tabular-nums}
+.dup-car .dc-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px}
+.dup-car .dc-k{font-size:11px;color:var(--muted);min-width:3.5em}
+.dup-car .dc-go{justify-self:start;margin-top:4px;font-size:13px;font-weight:800;color:#fff;background:var(--red);border-radius:999px;padding:4px 12px}
+.dup-tag{font-size:11px;font-weight:800;border-radius:6px;padding:1px 6px;background:#FBE7E8;color:var(--red-ink)}
+.rv-dup{margin:0 16px 6px;background:#FFF1C2;color:#5C3D00;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700}
 #s-prog form{max-height:calc(100vh - 32px);overflow:auto;color:var(--fg)}
 .st-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .st-btn{all:unset;cursor:pointer;text-align:center;padding:14px 2px;border-radius:10px;border:2px solid var(--line);font-weight:800;font-size:15px}
@@ -210,7 +221,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v43</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v44</small>
   <button class="me" id="yb-open" type="button">💡要望</button>
   <button class="me" id="me">担当者</button>
 </header>
@@ -374,6 +385,7 @@ button.status.up:active{transform:scale(.95)}
 <!-- 撮った写真の確認（終わる を押した時） -->
 <div id="review" hidden>
   <div class="rv-head" id="rv-head"></div>
+  <div class="rv-dup" id="rv-dup" hidden></div>
   <div class="rv-grid" id="rv-grid"></div>
   <div class="rv-foot">
     <button class="btn" id="rv-up" type="button"></button>
@@ -418,6 +430,13 @@ button.status.up:active{transform:scale(.95)}
   <div class="err" id="sp-err"></div>
   <button class="btn" id="sp-shoot" type="button">📷 この車の写真を撮る・見る</button>
   <button class="btn ghost" id="sp-close" type="button" style="color:var(--fg);border-color:var(--line)">閉じる</button>
+</form></div>
+<!-- 同じナンバーの車が何台もある時の確認（v44） -->
+<div class="modal" id="s-dup" hidden><form id="f-dup">
+  <h2 id="dup-title"></h2>
+  <div class="dup-warn" id="dup-warn"></div>
+  <div id="dup-list" style="display:grid;gap:8px"></div>
+  <button class="btn ghost" id="dup-close" type="button" style="color:var(--fg);border-color:var(--line)">やめる</button>
 </form></div>
 <div class="modal" id="s-pin" hidden><form id="f-pin">
   <h2>PINを入力</h2><input id="pin" type="password" inputmode="numeric" autocomplete="off">
@@ -724,11 +743,49 @@ function renderList(){
     <button class="car" data-i="${cars.indexOf(c)}">
       <span class="no">${esc(c.no)}</span><span class="cam-ic">📷 撮る</span>
       <span class="model">${esc(c.car)}</span><span></span>
-      <span class="meta">${esc(c.plate)} ・ ${esc(c.customer)}${c.inDate ? ' ・ ' + esc(c.inDate) : ''} ・ → ${isY(c) ? 'BP' : 'コグニ'}</span>
+      <span class="meta">${esc(c.plate)} ・ ${esc(c.customer)}${c.inDate ? ' ・ ' + esc(c.inDate) : ''} ・ → ${isY(c) ? 'BP' : 'コグニ'}${dupBadge(c)}</span>
     </button>`).join('') || '<div class="empty">見つかりません。<br>受付していない車は「受付」から登録してください。</div>';
+  const dn = new Set(rows.map(plateKey).filter((k, i, a) => k && a.indexOf(k) !== i)).size;
+  if (dn && q) $('#count').textContent += '　⚠ 同じナンバーの車があります。受付番号・車種を確かめて選んでください';
 }
+// ---------- 同じナンバーの確認（v44） ----------
+// ナンバーの数字（最後の4桁まで）が同じ車が他にもあれば、撮る前に並べて選び直してもらう。1台だけならこれまで通りすぐカメラ
+const plateKey = c => { const m = norm(c && c.plate).match(/(\d{1,4})\D*$/); return m ? m[1].padStart(4, '0') : ''; };
+const sameNumber = c => { const k = plateKey(c); return k ? cars.filter(x => x !== c && plateKey(x) === k) : []; };
+const dupBadge = c => { const n = sameNumber(c).length; return n ? `<span class="badge dup">⚠ 同じナンバー${n + 1}台</span>` : ''; };
+let dupGo = null, dupList = [];
+function pickCar(c, go, verb){
+  const others = sameNumber(c);
+  if (!others.length) return go(c);
+  dupList = [c].concat(others).sort((a, b) => (b.sheetMonth - a.sheetMonth) || b.no.localeCompare(a.no, 'ja', { numeric: true }));
+  dupGo = go;
+  const same = others.some(x => norm(x.plate) === norm(c.plate));
+  $('#dup-title').textContent = `⚠ ナンバー「${plateKey(c)}」の車が ${dupList.length}台 あります`;
+  $('#dup-warn').innerHTML = `違う車に${esc(verb || '写真をアップしない')}ように、<u>受付番号・入庫先・車種・入庫日</u>を確かめてから、正しい車を押してください。`
+    + (same ? '<br>同じ車が前にも入庫しています。今回の受付番号を選んでください。' : '');
+  $('#dup-list').innerHTML = dupList.map((x, i) => `
+    <button type="button" class="dup-car" data-d="${i}">
+      <span class="dc-row"><b>${esc(x.no)}</b>${i === 0 ? '<span class="dup-tag">いちばん新しい受付</span>' : ''}${x === c ? '<span class="dup-tag" style="background:#EEE;color:var(--fg)">今押した車</span>' : ''}</span>
+      <span class="dc-row"><span class="dc-k">入庫先</span>${esc(x.customer || '—')}</span>
+      <span class="dc-row"><span class="dc-k">車種</span><b style="font-size:14px">${esc(x.car)}</b></span>
+      <span class="dc-row"><span class="dc-k">ナンバー</span>${esc(x.plate)}</span>
+      <span class="dc-row"><span class="dc-k">入庫日</span>${esc(x.inDate || '—')}　→ ${isY(x) ? 'ヤナセBP' : 'コグニ'}</span>
+      <span class="dc-go">この車にする</span>
+    </button>`).join('');
+  $('#s-dup').hidden = false;
+  $('#dup-list').scrollTop = 0;
+}
+$('#dup-list').onclick = e => {
+  const b = e.target.closest('[data-d]'); if (!b) return;
+  const c = dupList[+b.dataset.d], go = dupGo;
+  $('#s-dup').hidden = true; dupGo = null;
+  toast(`${c.no}　${c.car} を選びました`);
+  if (go) go(c);
+};
+$('#dup-close').onclick = () => { $('#s-dup').hidden = true; dupGo = null; };
+$('#f-dup').onsubmit = e => e.preventDefault();
 $('#q').addEventListener('input', renderList);
-$('#list').onclick = e => { const b = e.target.closest('.car'); if (b) openCam(cars[+b.dataset.i]); };
+$('#list').onclick = e => { const b = e.target.closest('.car'); if (b) pickCar(cars[+b.dataset.i], c => openCam(c)); };
 
 // ---------- 部品入荷 ----------
 // 写真ホルダーの「部品入荷」フォルダーへ送る（GASの変更なし）。入庫先を Y横浜 にしてコグニ取込へのコピーを止める。
@@ -840,6 +897,9 @@ function openReview(){
   $('#rv-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`
     + (miss.length ? `<small style="color:#ffb3b3;font-weight:800">まだ撮っていません: ${miss.join('・')}（「撮影に戻る」で続きから撮れます）</small>` : '');
   $('#rv-grid').innerHTML = list.map(s => `<div class="rv"><img src="${s.thumb}" alt=""><span>${s.stage}${s.label ? '・' + esc(s.label) : ''}</span><button data-k="${shots.indexOf(s)}" aria-label="削除">×</button></div>`).join('');
+  const sn = cur.parts ? [] : sameNumber(cars.find(x => x.no === cur.no) || cur);
+  $('#rv-dup').hidden = !sn.length;
+  $('#rv-dup').innerHTML = sn.length ? `⚠ 同じナンバーの車が他に${sn.length}台あります。この車で合っていますか？<br>${esc(cur.no)}・${esc(cur.customer || '')}・${esc(cur.car)}・${esc(cur.plate)}${cur.inDate ? '・入庫' + esc(cur.inDate) : ''}` : '';
   $('#rv-up').textContent = `${list.length}枚をアップする`;
   $('#rv-up').hidden = !list.length;
   $('#review').hidden = false;
@@ -1347,11 +1407,11 @@ function renderMemoList(){
     <button class="car" data-i="${cars.indexOf(c)}">
       <span class="no">${esc(c.no)}</span><span class="cam-ic">📝 メモ</span>
       <span class="model">${esc(c.car)}</span><span></span>
-      <span class="meta">${esc(c.plate)} ・ ${esc(c.customer)}${c.inDate ? ' ・ ' + esc(c.inDate) : ''}</span>
+      <span class="meta">${esc(c.plate)} ・ ${esc(c.customer)}${c.inDate ? ' ・ ' + esc(c.inDate) : ''}${dupBadge(c)}</span>
     </button>`).join('') || (cars.length ? '<div class="empty">見つかりません</div>' : '');
 }
 $('#mq').addEventListener('input', renderMemoList);
-$('#m-list').onclick = e => { const b = e.target.closest('.car'); if (b) openMemo(cars[+b.dataset.i]); };
+$('#m-list').onclick = e => { const b = e.target.closest('.car'); if (b) pickCar(cars[+b.dataset.i], openMemo, '作業メモを送らない'); };
 
 function openMemo(c){
   mCar = c;
@@ -1721,7 +1781,7 @@ $('#sp-due').onchange = () => saveProg({ due: $('#sp-due').value });
 $('#sp-memo').onchange = () => saveProg({ memo: $('#sp-memo').value.trim() });
 $('#sp-close').onclick = () => { $('#s-prog').hidden = true; spCar = null; };
 $('#f-prog').onsubmit = e => e.preventDefault();
-$('#sp-shoot').onclick = () => { const c = spCar; $('#s-prog').hidden = true; spCar = null; openCam(c); };
+$('#sp-shoot').onclick = () => { const c = spCar; $('#s-prog').hidden = true; spCar = null; pickCar(c, x => openCam(x)); };
 // 撮影画面の上の「工程」ボタン（部品の紙を撮る時は出さない）
 function camStageChip(){
   const b = $('#c-stage');
