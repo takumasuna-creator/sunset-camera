@@ -221,7 +221,7 @@ button.status.up:active{transform:scale(.95)}
 </head>
 <body>
 <header id="head">
-  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v44</small>
+  <h1>作業<small id="sub">車を押すとカメラが開きます</small></h1><small id="ver" style="font-size:10px;opacity:.7">v45</small>
   <button class="me" id="yb-open" type="button">💡要望</button>
   <button class="me" id="me">担当者</button>
 </header>
@@ -512,7 +512,7 @@ const HINT = {
   '損傷': '傷・へこみに近づいて。大きさがわかる1枚も',
 };
 const labelFor = (st, n) => st === '受付' ? (MUST[n] || '書類') : st === '入庫' ? (ANGLES[n] || '損傷') : '';
-const VERSION = '43';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
+const VERSION = '45';   // 直すたびに上げる。古い画面が残っていたら自動で読み直す
 const MAX_KB = 300, MAX_EDGE = 2048, PARALLEL = 5;
 
 const $ = s => document.querySelector(s);
@@ -545,7 +545,17 @@ const queue = {
 async function resumeQueue(){
   const items = await queue.all();
   if (!items || !items.length) return;
-  items.filter(it => it.dataUrl).forEach(it => { if (!shots.some(x => x.id === it.id)) shots.push({ id: it.id, no: it.no, car: it.car, stage: it.stage, label: it.label, thumb: it.thumb, dataUrl: it.dataUrl, state: 'wait' }); });
+  const pend = {};   // 受付を送っている途中でアプリが閉じた車（v45）: 同じ受付をもう一度送ってから写真を送る
+  items.filter(it => it.dataUrl).forEach(it => {
+    if (shots.some(x => x.id === it.id)) return;
+    let car = it.car;
+    if (car && car.pending) car = pend[car.rid] || (pend[car.rid] = car);
+    shots.push({ id: it.id, no: it.no, car, stage: it.stage, label: it.label, thumb: it.thumb, dataUrl: it.dataUrl, state: 'wait' });
+  });
+  Object.keys(pend).forEach(rid => {
+    let f = null; try { f = JSON.parse(store.get('pendRecv_' + rid) || 'null'); } catch (e) {}
+    if (f) sendRecv(pend[rid], f);
+  });
   pump(); showSending();
 }
 
@@ -651,14 +661,17 @@ function loadBoot(){
   $('#r-boot').textContent = '';
   booting = (async () => {
     try {
-      const r = await (await fetch(API + '?api=boot&pin=' + encodeURIComponent(store.get('pin')))).json();
+      // 候補だけ受け取る（lite=1。車の一覧は別に読んでいる）。電波が悪い時は1回だけ送り直す
+      const get = async () => (await fetch(API + '?api=boot&lite=1&pin=' + encodeURIComponent(store.get('pin')))).json();
+      let r; try { r = await get(); } catch (e) { await new Promise(ok => setTimeout(ok, 1500)); r = await get(); }
       if (!r.ok) throw new Error(r.error);
       const d = { categories: r.data.categories, billTo: r.data.billTo, customers: r.data.customers || [] };
       fillBoot(Object.assign({}, d, { today: r.data.today }));
       store.set('boot', JSON.stringify(d));
       booted = true;
     } catch (err) {
-      $('#r-boot').textContent = '候補を最新にできませんでした（前回の候補で選べます）。入庫先のボタンを押すと読み直します: ' + (err.message || err);
+      // 前回の候補で選べるので、受付は止めない。候補がまったく無い時だけ知らせる
+      if (!custs.length) $('#r-boot').textContent = '入庫先の候補を読み込めませんでした（下に直接記入できます）。区分のボタンを押すと読み直します';
     } finally { booting = null; }
   })();
   return booting;
@@ -689,31 +702,109 @@ $('#r-custs').onclick = e => {
 };
 $('#r-customer').addEventListener('input', markCust);
 $('#r-submit').onclick = () => submitRecv(false);
-async function submitRecv(force){
-  $('#r-err').textContent = '';
-  const f = { action: 'register', kind, date: $('#r-date').value, car: $('#r-car').value.trim(), plate: $('#r-plate').value.trim(),
+// v45: 受付は裏で送り、押したらすぐ撮影画面へ。受付番号が決まるまで写真は手元で待たせ、決まったら自動で送る
+const plateKeyRecv = s => String(s || '').normalize('NFKC').replace(/\s+/g, '').toUpperCase().replace(/[-‐‑‒–—―−ー－・.･]/g, '');
+const dispNo = c => c && c.pending ? '受付中…' : (c ? c.no : '');
+function recvForm(force){
+  return { action: 'register', kind, date: $('#r-date').value, car: $('#r-car').value.trim(), plate: $('#r-plate').value.trim(),
     customer: kind === 'yShop' ? $('#r-shop').value.trim() : kind === 'general' ? $('#r-customer').value.trim() : '', category: $('#r-category').value, billTo: $('#r-bill').value,
-    staff: $('#r-staff').value.trim(), memo: $('#r-memo').value.trim(), force };
-  $('#r-submit').disabled = true; $('#r-submit').textContent = '受付中…';
+    staff: $('#r-staff').value.trim(), memo: $('#r-memo').value.trim(), force: !!force };
+}
+function submitRecv(force){
+  $('#r-err').textContent = '';
+  const f = recvForm(force);
+  // サーバーに聞く前に、ここで分かる入力漏れを止める
+  if (!kind) return $('#r-err').textContent = '受付の区分を選んでください';
+  if (kind === 'general' && !f.customer) return $('#r-err').textContent = '入庫先（お客様名・業者名）を入れてください';
+  if (!f.car) return $('#r-err').textContent = '車名を入れてください';
+  if (!f.plate) return $('#r-err').textContent = '登録番号か車台番号を入れてください';
+  if (!f.date) return $('#r-err').textContent = '入庫日を入れてください';
+  // 同じ登録番号の確認は、読み込み済みの車の一覧でその場で（サーバーでも念のため確認する）
+  if (!force) {
+    const p = plateKeyRecv(f.plate);
+    const dup = cars.filter(c => !c.pending && plateKeyRecv(c.plate) === p);
+    if (dup.length && !askDup(dup, f)) return;
+    if (dup.length) f.force = true;
+  }
+  const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  f.rid = rid;
+  const d = new Date(f.date.replace(/-/g, '/'));
+  const p = { no: 'P_' + rid, pending: true, rid, customer: f.customer || (kind === 'yUsed' ? 'Y横浜' : kind === 'general' ? '' : 'ヤナセ'),
+    car: f.car, plate: f.plate, inDate: (d.getMonth() + 1) + '/' + d.getDate(), staff: f.staff,
+    dest: kind === 'general' ? 'コグニセブン' : 'ヤナセBP', sheetMonth: d.getMonth() + 1 };
+  store.set('pendRecv_' + rid, JSON.stringify(f));
+  resetRecv(); showTab('work'); openCam(p, '受付');
+  toast('受付を送っています。そのまま撮影してください');
+  sendRecv(p, f);
+}
+// 同じ登録番号の車がある時: OK→別の入庫として受付 / キャンセル→その車の撮影へ（受付はしない）
+function askDup(dup, f){
+  const list = dup.map(d => `${d.no}　${d.car}　${d.plate}`).join('\n');
+  if (confirm('同じ登録番号の車がすでにあります。\n' + list + '\n\n・OK … 別の入庫として新しく受け付ける\n・キャンセル … この車の写真を撮る（受付はしない）')) return true;
+  const d = dup[0];
+  const c = cars.find(x => x.no === d.no) || { no: d.no, car: d.car, plate: d.plate, customer: '', dest: /^Y/.test(d.no) ? 'ヤナセBP' : 'コグニセブン' };
+  resetRecv(); showTab('work'); openCam(c, '受付');
+  return false;
+}
+let recvWait = 0;
+async function sendRecv(p, f){
+  let r;
+  if (cur === p) $('#c-no').textContent = dispNo(p);
   try {
-    const r = await post(f);
-    if (r.duplicate) {
-      const list = r.duplicate.map(d => `${d.no}　${d.car}　${d.plate}`).join('\n');
-      if (confirm('同じ登録番号の車がすでにあります。\n' + list + '\n\n・OK … 別の入庫として新しく受け付ける\n・キャンセル … この車の写真を撮る（受付はしない）')) return submitRecv(true);
-      // キャンセル: すでにある車の撮影へそのまま進む
-      const d = r.duplicate[0];
-      const c = cars.find(x => x.no === d.no) || { no: d.no, car: d.car, plate: d.plate, customer: '', dest: /^Y/.test(d.no) ? 'ヤナセBP' : 'コグニセブン' };
-      resetRecv(); showTab('work'); openCam(c, '受付');
+    r = await post(f);
+  } catch (err) {
+    const m = String(err.message || err);
+    if (err instanceof TypeError || /Load failed|Failed to fetch|NetworkError|network/i.test(m)) {   // 電波が悪い: 少し待って送り直す（同じ受付は二重にならない）
+      if (cur === p) $('#c-no').textContent = '受付中…（電波待ち）';
+      setTimeout(() => sendRecv(p, f), Math.min(30000, 3000 * ++recvWait));
       return;
     }
-    lastRecv = r;
-    $('#d-no').textContent = r.no;
-    $('#d-car').textContent = `${r.car.car}　${r.car.plate}`;
-    $('#d-where').textContent = `売上集計表「${r.sheet}」${r.row}行目 ・ 写真→${isY(r.car) ? 'ヤナセBPシステム' : 'コグニセブン'}`;
-    cars.unshift(r.car);
-    showTab('recv');
-  } catch (err) { $('#r-err').textContent = String(err.message || err); }
-  finally { $('#r-submit').disabled = false; $('#r-submit').textContent = '受付する'; }
+    if (confirm('受付できませんでした: ' + m + '\n\n・OK … もう一度送る\n・キャンセル … 受付をやめる（この車で撮った写真も消えます）')) return sendRecv(p, f);
+    return cancelPending(p, f);
+  }
+  recvWait = 0;
+  if (r.duplicate) {   // 一覧に無かった同じ登録番号（ほかのスマホで受付した直後など）
+    const list = r.duplicate.map(d => `${d.no}　${d.car}　${d.plate}`).join('\n');
+    if (confirm('同じ登録番号の車がすでにありました。\n' + list + '\n\n・OK … 別の入庫として新しく受け付ける\n・キャンセル … 撮った写真はこの車に入れる（受付はしない）'))
+      return sendRecv(p, Object.assign(f, { force: true }));
+    const d = r.duplicate[0];
+    const c = cars.find(x => x.no === d.no) || { no: d.no, car: d.car, plate: d.plate, customer: '', dest: /^Y/.test(d.no) ? 'ヤナセBP' : 'コグニセブン' };
+    return settlePending(p, Object.assign({}, c), null);
+  }
+  settlePending(p, r.car, r);
+}
+// 受付番号が決まった: 待たせていた写真に番号を付けて送り出す
+function settlePending(p, car, r){
+  const wasCur = cur === p, rid = p.rid;
+  delete p.pending; delete p.rid;
+  Object.assign(p, car);
+  p.key = norm([p.no, p.no.replace(/(\d+)-0*(\d+)/,'$1$2'), p.car, p.plate, p.customer].join(' '));
+  shots.forEach(s => {
+    if (s.car !== p) return;
+    s.no = p.no;
+    if (s.id && s.dataUrl) queue.put({ id: s.id, no: s.no, car: s.car, stage: s.stage, label: s.label, thumb: s.thumb, dataUrl: s.dataUrl });
+  });
+  if (r) {
+    const i = cars.findIndex(x => x.no === p.no);
+    if (i >= 0) cars.splice(i, 1);
+    cars.unshift(p);
+    renderList(); renderMemoList();
+  }
+  if (rid) store.set('pendRecv_' + rid, '');
+  if (wasCur) { $('#c-no').textContent = p.no; camStageChip(); renderCam(); }
+  toast(r ? `受付しました ${p.no}（売上集計表「${r.sheet}」${r.row}行目）` : `${p.no} の写真として送ります`);
+  pump(); showSending();
+}
+function cancelPending(p, f){
+  for (let i = shots.length - 1; i >= 0; i--) if (shots[i].car === p) { if (shots[i].id) queue.del(shots[i].id); shots.splice(i, 1); }
+  store.set('pendRecv_' + f.rid, '');
+  if (cur === p) { $('#review').hidden = true; closeCam(); }
+  showSending();
+  // 入れた内容は受付画面に戻して、直してから押し直せるように
+  showTab('recv'); setKind(f.kind);
+  $('#r-car').value = f.car; $('#r-plate').value = f.plate; $('#r-memo').value = f.memo; $('#r-staff').value = f.staff; $('#r-date').value = f.date;
+  if (f.kind === 'yShop') { $('#r-shop').value = f.customer; markShop(); }
+  if (f.kind === 'general') { $('#r-customer').value = f.customer; $('#r-category').value = f.category; $('#r-bill').value = f.billTo; markCust(); }
 }
 $('#d-shoot').onclick = () => { const c = lastRecv.car; resetRecv(); showTab('work'); openCam(c, '受付'); };
 $('#d-next').onclick = () => { resetRecv(); showTab('recv'); };
@@ -835,7 +926,7 @@ async function openCam(c, first){
   loadShutter();   // シャッター音を先に準備（1枚目から鳴るように）
   cur = c; stage = first || 'その他'; camFirst = stage;   // 工程は選ばない。受付から開いた時だけ車検証などを順に案内する
   if (stage === '受付') loadZX().catch(() => {});   // 車検証チェックの準備を先に
-  $('#c-no').textContent = c.no;
+  $('#c-no').textContent = dispNo(c);
   $('#c-car').textContent = `${c.car}　${c.plate}`;
   camStageChip();
   $('#next').textContent = '';
@@ -894,7 +985,7 @@ $('#c-done').onclick = () => { if (!held().length) return closeCam(); openReview
 function openReview(){
   const list = held();
   const miss = camFirst === '受付' ? MUST.filter(m => !mine().some(s => s.label === m)) : [];
-  $('#rv-head').innerHTML = `${esc(cur.no)}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`
+  $('#rv-head').innerHTML = `${esc(dispNo(cur))}　${esc(cur.car)}<small>いらない写真は × で消してから、アップしてください</small>`
     + (miss.length ? `<small style="color:#ffb3b3;font-weight:800">まだ撮っていません: ${miss.join('・')}（「撮影に戻る」で続きから撮れます）</small>` : '');
   $('#rv-grid').innerHTML = list.map(s => `<div class="rv"><img src="${s.thumb}" alt=""><span>${s.stage}${s.label ? '・' + esc(s.label) : ''}</span><button data-k="${shots.indexOf(s)}" aria-label="削除">×</button></div>`).join('');
   const sn = cur.parts ? [] : sameNumber(cars.find(x => x.no === cur.no) || cur);
@@ -940,7 +1031,7 @@ $('#pk-del').onclick = () => { drop(peekShot); relabel(); $('#peek').hidden = tr
 // ---------- 保存済みの写真・書類を見る ----------
 let galList = [], galSeq = [], galAt = -1;
 const bigCache = {};
-$('#c-gal').onclick = openGal;
+$('#c-gal').onclick = () => { if (cur && cur.pending) return toast('受付が終わると見られます（もう少しお待ちください）'); openGal(); };
 // スマホの写真（カメラロール）から選んでアップする。選んだ写真は確認画面に並べ、そこからアップ
 $('#roll').onchange = async e => {
   const files = [...e.target.files]; e.target.value = '';
@@ -1212,7 +1303,9 @@ function showSending(){
   const left = shots.filter(s => s.state === 'wait' || s.state === 'up').length;
   const err = shots.filter(s => s.state === 'err').length;
   $('#sending').hidden = !left && !err;
-  $('#sending').textContent = left ? `写真を送っています（残り${left}枚）。次の車を撮っても大丈夫です`
+  const pend = shots.filter(s => s.state === 'wait' && s.car && s.car.pending).length;
+  $('#sending').textContent = left && pend === left ? `受付の完了を待っています（${left}枚）。番号が決まると自動で送ります`
+    : left ? `写真を送っています（残り${left}枚）。次の車を撮っても大丈夫です`
     : `${err}枚まだ送れていません。電波が戻ると自動で送ります（押すと今すぐ送り直し）`;
 }
 $('#sending').onclick = () => { shots.forEach(s => { if (s.state === 'err') s.state = 'wait'; }); pump(); showSending(); };
@@ -1338,12 +1431,13 @@ $('#shutter').onclick = () => {
 };
 
 // ---------- 送信（JPEG・300KB以下、5枚ずつ） ----------
+const sendable = s => s.state === 'wait' && !(s.car && s.car.pending);   // 受付番号が決まるまでは送らない（v45）
 function pump(){
-  while (running < PARALLEL && shots.some(s => s.state === 'wait')) { running++; worker().finally(() => running--); }
+  while (running < PARALLEL && shots.some(sendable)) { running++; worker().finally(() => running--); }
 }
 async function worker(){
   let s;
-  while ((s = shots.find(x => x.state === 'wait'))) {
+  while ((s = shots.find(sendable))) {
     s.state = 'up';
     try {
       const c = s.car;
@@ -1580,7 +1674,7 @@ $('#fx-custs').onclick = e => {
 };
 $('#fx-cancel').onclick = () => { $('#s-fix').hidden = true; };
 $('#d-fix').onclick = () => { if (lastRecv) openFix(lastRecv.car); };
-$('#g-fix').onclick = () => { if (cur) openFix(cur); };
+$('#g-fix').onclick = () => { if (cur && cur.pending) return toast('受付が終わってから訂正できます'); if (cur) openFix(cur); };
 $('#f-fix').onsubmit = async e => {
   e.preventDefault();
   if (!fixKind) return;
@@ -1785,7 +1879,7 @@ $('#sp-shoot').onclick = () => { const c = spCar; $('#s-prog').hidden = true; sp
 // 撮影画面の上の「工程」ボタン（部品の紙を撮る時は出さない）
 function camStageChip(){
   const b = $('#c-stage');
-  if (!cur || cur.parts || !cur.no) { b.hidden = true; return; }
+  if (!cur || cur.parts || !cur.no || cur.pending) { b.hidden = true; return; }
   b.hidden = false;
   b.textContent = '工程: ' + stOf(cur).stage + ' ▸';
 }
